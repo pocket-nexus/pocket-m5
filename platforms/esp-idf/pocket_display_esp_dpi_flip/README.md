@@ -1,4 +1,4 @@
-# pocket_display_esp_dpi
+# pocket_display_esp_dpi_flip
 
 PocketJS display output (`pocket_display_output_v1`) over an esp_lcd MIPI-DSI
 DPI panel with **two RGB565 frame buffers**. The runtime renders into the
@@ -20,7 +20,7 @@ buffer that is not in scanout; flush hands that buffer to scanout.
   `acquire` of that buffer, which waits for the flip away from it.
 
 The descriptor declares `DOUBLE_BUFFERED | PARTIAL_REFRESH` with 1×1 refresh
-granularity and alignment. `pocket_display_esp_dpi_budget` returns the
+granularity and alignment. `pocket_display_esp_dpi_flip_budget` returns the
 `frame_buffer_budget` the runtime needs: `width × height × 2 × 2` bytes.
 
 ## Requirements

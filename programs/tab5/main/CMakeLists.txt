@@ -1,4 +1,4 @@
-set(tab5_requires m5_bsp_tab5 pocket_app_host pocket_display_esp_dpi
+set(tab5_requires m5_bsp_tab5 pocket_app_host pocket_display_esp_dpi_flip
     pocket_input_esp_touch pocket_runtime pocket_render_esp_ppa)
 
 idf_component_register(

@@ -31,7 +31,7 @@ Pin and rail assignments are listed in [docs/TAB5.md](../../../docs/TAB5.md).
 ## Constraints
 
 - The DSI interrupts are allocated on the core that calls
-  `m5_tab5_display_new`. `pocket_display_esp_dpi` requires that core to run
+  `m5_tab5_display_new`. `pocket_display_esp_dpi_flip` requires that core to run
   the runtime owner task.
 - `m5_tab5_panel` waits until 500 ms after the touch reset release before the
   first probe.
