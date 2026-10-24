@@ -1,0 +1,26 @@
+menu "PocketJS Tab5 firmware"
+
+    config TAB5_RENDERER_PPA
+        bool "Render through the ESP32-P4 PPA"
+        default y
+        help
+            Registers the PPA renderer for fills, glyph blends and texture
+            scaling. Unsupported operations fall back to software. Disable to
+            use the software renderer only.
+
+    config TAB5_BACKLIGHT_PERCENT
+        int "Backlight level at boot (percent)"
+        range 1 100
+        default 80
+
+    config TAB5_RUNTIME_HEAP_KB
+        int "Runtime heap limit per app (KiB)"
+        range 1024 24576
+        default 12288
+
+    config TAB5_GUEST_HEAP_KB
+        int "QuickJS heap limit per app (KiB)"
+        range 1024 16384
+        default 8192
+
+endmenu

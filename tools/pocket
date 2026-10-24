@@ -1,0 +1,6 @@
+#!/bin/sh
+# PocketJS CLI from the pinned third_party/pocketjs checkout. CMake helpers in
+# the pocket_runtime component invoke this script through POCKETJS_CLI.
+set -eu
+root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+exec bun "$root/third_party/pocketjs/tools/pocket.ts" "$@"

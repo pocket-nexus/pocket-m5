@@ -1,0 +1,5 @@
+version: "0.1.0"
+description: PocketJS multi-app host - package catalog, install inbox and guest switching
+license: MIT
+dependencies:
+  idf: ">=6.0,<6.3"

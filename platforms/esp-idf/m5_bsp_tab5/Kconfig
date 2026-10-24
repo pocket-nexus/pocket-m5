@@ -1,0 +1,32 @@
+menu "M5Stack Tab5 board"
+
+    config M5_TAB5_I2C_PORT
+        int "System I2C port"
+        range 0 1
+        default 0
+
+    config M5_TAB5_BACKLIGHT_LEDC_TIMER
+        int "LEDC timer for the LCD backlight"
+        range 0 3
+        default 1
+
+    config M5_TAB5_BACKLIGHT_LEDC_CHANNEL
+        int "LEDC channel for the LCD backlight"
+        range 0 7
+        default 1
+
+    config M5_TAB5_CHARGE_ENABLE
+        bool "Enable battery charging in m5_tab5_init"
+        default y
+        help
+            Drives expander 1 P7 high. Without it the battery does not charge
+            from USB-C.
+
+    config M5_TAB5_QUICK_CHARGE_ENABLE
+        bool "Enable quick charge in m5_tab5_init"
+        default y
+        depends on M5_TAB5_CHARGE_ENABLE
+        help
+            Drives expander 1 P5 (active low) low.
+
+endmenu

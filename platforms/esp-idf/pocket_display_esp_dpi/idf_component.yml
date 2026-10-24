@@ -1,0 +1,7 @@
+version: "0.1.0"
+description: PocketJS display output over a double-buffered MIPI-DSI DPI panel
+license: MIT
+targets:
+  - esp32p4
+dependencies:
+  idf: ">=6.0,<6.3"

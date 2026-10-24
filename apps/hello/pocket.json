@@ -1,0 +1,22 @@
+{
+  "$schema": "https://pocketjs.dev/schema/pocket-2.json",
+  "pocket": 2,
+  "id": "dev.pocket-nexus.m5.hello",
+  "name": "m5-hello",
+  "title": "Hello Tab5",
+  "version": "0.1.0",
+  "engine": {
+    "capabilities": {
+      "requires": ["input.touch", "text.glyphs.baked"]
+    }
+  },
+  "app": {
+    "entry": "main.tsx",
+    "output": "hello",
+    "framework": "solid",
+    "viewport": {
+      "logical": [360, 640],
+      "presentation": "native"
+    }
+  }
+}

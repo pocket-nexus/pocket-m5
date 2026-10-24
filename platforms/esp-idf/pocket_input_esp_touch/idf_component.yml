@@ -1,0 +1,8 @@
+version: "0.1.0"
+description: PocketJS multi-contact input source over esp_lcd_touch
+license: MIT
+dependencies:
+  idf: ">=6.0,<6.3"
+  espressif/esp_lcd_touch:
+    version: "1.2.1"
+    public: true
