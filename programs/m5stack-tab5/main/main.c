@@ -615,6 +615,8 @@ static void after_tick(int32_t status, void *context) {
 /* ---- guests -----------------------------------------------------------------
  */
 
+/* Only the launcher switches guests; the embedded variants run one. */
+#if TAB5_LAUNCHER
 static void stop_guest(tab5_host_t *host) {
   tab5_guest_t *running = &host->running;
   if (running->runner)
@@ -636,6 +638,7 @@ static void stop_guest(tab5_host_t *host) {
   /* The next guest draws a picture its displays have never seen. */
   pocket_display_esp_dpi_invalidate(host->display);
 }
+#endif
 
 /* Boot the application in `bytes` and start its runner. `bind` records it
  * as the running app of the launcher mode and installs the system
