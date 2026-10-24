@@ -21,6 +21,8 @@ idf_component_register(
         pocket_system
 )
 
+target_compile_options(${COMPONENT_LIB} PRIVATE -Wall -Wextra -Werror)
+
 if(POCKETJS_TAB5_APP STREQUAL "home")
     # Pocket Home is built in pocket-shell against home.runtime-config.ts.
     set(POCKETJS_TAB5_HOME_PACKAGE "" CACHE FILEPATH "Pocket Home's home-main.pocket")
