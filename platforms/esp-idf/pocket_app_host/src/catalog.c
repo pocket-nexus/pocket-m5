@@ -70,8 +70,11 @@ static size_t list_packages(const char *directory,
   if (!dir)
     return 0;
   size_t count = 0;
+  /* Hidden names include the AppleDouble "._<file>" metadata macOS writes
+   * next to every file it copies onto FAT. */
   for (struct dirent *entry; count < capacity && (entry = readdir(dir));)
-    if (entry->d_type != DT_DIR && has_suffix(entry->d_name, ".pocket"))
+    if (entry->d_type != DT_DIR && entry->d_name[0] != '.' &&
+        has_suffix(entry->d_name, ".pocket"))
       snprintf(names[count++], CATALOG_PATH_MAX, "%s", entry->d_name);
   closedir(dir);
   return count;
