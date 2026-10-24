@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-typedef struct pocket_display_esp_dpi pocket_display_esp_dpi;
+typedef struct pocket_display_esp_dpi_flip pocket_display_esp_dpi_flip;
 
 /* MIPI-DSI DPI panel created by esp_lcd_new_panel_dpi with num_fbs == 2 and
  * RGB565 input. Create the panel on the core that runs the runtime owner task:
@@ -20,19 +20,21 @@ typedef struct {
   esp_lcd_panel_handle_t panel;
   uint32_t width, height;
   uint32_t flip_timeout_ms;
-} pocket_display_esp_dpi_config;
+} pocket_display_esp_dpi_flip_config;
 
-pocket_display_esp_dpi *
-pocket_display_esp_dpi_create(const pocket_display_esp_dpi_config *config);
-const pocket_display_output_v1 *pocket_display_esp_dpi_vtable(void);
+pocket_display_esp_dpi_flip *pocket_display_esp_dpi_flip_create(
+    const pocket_display_esp_dpi_flip_config *config);
+const pocket_display_output_v1 *pocket_display_esp_dpi_flip_vtable(void);
 /* Host frame storage the runtime must budget: both frame buffers. */
-size_t pocket_display_esp_dpi_budget(const pocket_display_esp_dpi *display);
+size_t
+pocket_display_esp_dpi_flip_budget(const pocket_display_esp_dpi_flip *display);
 /* Call after external writes to either frame buffer, while no runtime call is
  * active. The next frame of each buffer repaints it. */
-void pocket_display_esp_dpi_invalidate(pocket_display_esp_dpi *display);
+void pocket_display_esp_dpi_flip_invalidate(
+    pocket_display_esp_dpi_flip *display);
 /* Waits for a pending flip and unregisters the panel callbacks. Does not
  * delete the panel. */
-void pocket_display_esp_dpi_destroy(pocket_display_esp_dpi *display);
+void pocket_display_esp_dpi_flip_destroy(pocket_display_esp_dpi_flip *display);
 
 #ifdef __cplusplus
 }

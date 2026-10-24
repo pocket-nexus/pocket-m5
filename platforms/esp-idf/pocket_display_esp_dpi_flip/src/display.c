@@ -4,14 +4,14 @@
 #include "esp_lcd_panel_ops.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
-#include "pocket/display_esp_dpi.h"
+#include "pocket/display_esp_dpi_flip.h"
 #include <limits.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
 
-struct pocket_display_esp_dpi {
-  pocket_display_esp_dpi_config config;
+struct pocket_display_esp_dpi_flip {
+  pocket_display_esp_dpi_flip_config config;
   uint8_t *buffers[2];
   size_t stride, buffer_bytes;
   /* Buffer handed to scanout by the last flush. Scanout switches to it at the
@@ -35,14 +35,14 @@ static IRAM_ATTR bool frame_complete(esp_lcd_panel_handle_t panel,
                                      void *context) {
   (void)panel;
   (void)event;
-  pocket_display_esp_dpi *d = context;
+  pocket_display_esp_dpi_flip *d = context;
   atomic_fetch_add_explicit(&d->frames, 1, memory_order_release);
   BaseType_t woken = pdFALSE;
   xSemaphoreGiveFromISR(d->frame_done, &woken);
   return woken == pdTRUE;
 }
 
-static bool wait_flip(pocket_display_esp_dpi *d) {
+static bool wait_flip(pocket_display_esp_dpi_flip *d) {
   if (!d->flip_pending)
     return true;
   const TickType_t timeout = pdMS_TO_TICKS(d->config.flip_timeout_ms);
@@ -60,8 +60,8 @@ static bool wait_flip(pocket_display_esp_dpi *d) {
   return true;
 }
 
-pocket_display_esp_dpi *
-pocket_display_esp_dpi_create(const pocket_display_esp_dpi_config *c) {
+pocket_display_esp_dpi_flip *pocket_display_esp_dpi_flip_create(
+    const pocket_display_esp_dpi_flip_config *c) {
   if (!c || c->struct_size < sizeof(*c) || !c->panel || !c->width ||
       !c->height || c->width > INT_MAX || c->height > INT_MAX ||
       !c->flip_timeout_ms || c->width > SIZE_MAX / 2 / c->height / 2)
@@ -71,7 +71,7 @@ pocket_display_esp_dpi_create(const pocket_display_esp_dpi_config *c) {
       !fb0 || !fb1)
     return NULL;
   /* The interrupt reads this state; keep it in internal RAM. */
-  pocket_display_esp_dpi *d =
+  pocket_display_esp_dpi_flip *d =
       heap_caps_calloc(1, sizeof(*d), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
   if (!d)
     return NULL;
@@ -95,16 +95,17 @@ pocket_display_esp_dpi_create(const pocket_display_esp_dpi_config *c) {
   return d;
 }
 
-size_t pocket_display_esp_dpi_budget(const pocket_display_esp_dpi *d) {
+size_t
+pocket_display_esp_dpi_flip_budget(const pocket_display_esp_dpi_flip *d) {
   return d ? d->buffer_bytes * 2 : 0;
 }
 
-void pocket_display_esp_dpi_invalidate(pocket_display_esp_dpi *d) {
+void pocket_display_esp_dpi_flip_invalidate(pocket_display_esp_dpi_flip *d) {
   if (d && d->generation < UINT64_MAX)
     d->generation++;
 }
 
-void pocket_display_esp_dpi_destroy(pocket_display_esp_dpi *d) {
+void pocket_display_esp_dpi_flip_destroy(pocket_display_esp_dpi_flip *d) {
   if (!d)
     return;
   (void)wait_flip(d);
@@ -115,7 +116,7 @@ void pocket_display_esp_dpi_destroy(pocket_display_esp_dpi *d) {
 }
 
 static int32_t descriptor(void *context, pocket_display_descriptor *out) {
-  pocket_display_esp_dpi *d = context;
+  pocket_display_esp_dpi_flip *d = context;
   if (!d || !out || out->struct_size < sizeof(*out))
     return POCKET_STATUS_INVALID;
   *out = (pocket_display_descriptor){.struct_size = sizeof(*out),
@@ -138,7 +139,7 @@ static int32_t descriptor(void *context, pocket_display_descriptor *out) {
 /* Returns the buffer that is not in scanout, after a pending flip lands. */
 static int32_t acquire(void *context, const pocket_rect *region,
                        pocket_target *out) {
-  pocket_display_esp_dpi *d = context;
+  pocket_display_esp_dpi_flip *d = context;
   if (!d || !region || region->struct_size < sizeof(*region) || !out ||
       out->struct_size < sizeof(*out) || region->x ||
       region->width != d->config.width || !region->height ||
@@ -169,7 +170,7 @@ static int32_t acquire(void *context, const pocket_rect *region,
  * cached rows and selects that buffer for the next DMA restart. */
 static int32_t flush(void *context, const pocket_rect *regions, size_t count,
                      uint64_t *token) {
-  pocket_display_esp_dpi *d = context;
+  pocket_display_esp_dpi_flip *d = context;
   if (!d || !regions || !count || !token || d->active > 1 ||
       d->next_token == UINT64_MAX)
     return POCKET_STATUS_INVALID;
@@ -206,7 +207,7 @@ static int32_t flush(void *context, const pocket_rect *regions, size_t count,
   d->active = UINT32_MAX;
   if (status != POCKET_STATUS_OK) {
     /* Rows after the failed region kept stale cache lines; repaint both. */
-    pocket_display_esp_dpi_invalidate(d);
+    pocket_display_esp_dpi_flip_invalidate(d);
     return status;
   }
   *token = d->pending_token = ++d->next_token;
@@ -214,7 +215,7 @@ static int32_t flush(void *context, const pocket_rect *regions, size_t count,
 }
 
 static int32_t wait_display(void *context, uint64_t token) {
-  pocket_display_esp_dpi *d = context;
+  pocket_display_esp_dpi_flip *d = context;
   if (!d || !token || token != d->pending_token)
     return POCKET_STATUS_INVALID;
   /* Cache write-back completed inside flush; scanout reads the flushed
@@ -225,7 +226,7 @@ static int32_t wait_display(void *context, uint64_t token) {
 }
 
 static int32_t identity(void *context, pocket_buffer_identity *out) {
-  pocket_display_esp_dpi *d = context;
+  pocket_display_esp_dpi_flip *d = context;
   if (!d || !out || out->struct_size < sizeof(*out))
     return POCKET_STATUS_INVALID;
   *out = (pocket_buffer_identity){.struct_size = sizeof(*out),
@@ -241,6 +242,6 @@ static const pocket_display_output_v1 DISPLAY = {.struct_size = sizeof(DISPLAY),
                                                  .wait = wait_display,
                                                  .frame_identity = identity};
 
-const pocket_display_output_v1 *pocket_display_esp_dpi_vtable(void) {
+const pocket_display_output_v1 *pocket_display_esp_dpi_flip_vtable(void) {
   return &DISPLAY;
 }

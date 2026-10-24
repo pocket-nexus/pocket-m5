@@ -3,7 +3,7 @@
 #include "esp_log.h"
 #include "m5/tab5.h"
 #include "pocket/app_host.h"
-#include "pocket/display_esp_dpi.h"
+#include "pocket/display_esp_dpi_flip.h"
 #include "pocket/input_esp_touch.h"
 #include "pocket_profile.h"
 #include "pocketjs_package_home.h"
@@ -49,15 +49,15 @@ void app_main(void) {
 
   m5_tab5_display_t lcd;
   ESP_ERROR_CHECK(m5_tab5_display_new(2, &lcd));
-  const pocket_display_esp_dpi_config display_config = {
+  const pocket_display_esp_dpi_flip_config display_config = {
       .struct_size = sizeof(display_config),
       .panel = lcd.panel,
       .width = M5_TAB5_LCD_WIDTH,
       .height = M5_TAB5_LCD_HEIGHT,
       .flip_timeout_ms = 200,
   };
-  pocket_display_esp_dpi *display =
-      pocket_display_esp_dpi_create(&display_config);
+  pocket_display_esp_dpi_flip *display =
+      pocket_display_esp_dpi_flip_create(&display_config);
   if (!display) {
     ESP_LOGE(TAG, "display driver creation failed");
     return;
@@ -95,8 +95,8 @@ void app_main(void) {
   host.tick_hz = pocket_profile.tick_hz;
   host.runtime_heap_limit = CONFIG_TAB5_RUNTIME_HEAP_KB * 1024u;
   host.guest_heap_limit = CONFIG_TAB5_GUEST_HEAP_KB * 1024u;
-  host.frame_buffer_budget = pocket_display_esp_dpi_budget(display);
-  host.display = pocket_display_esp_dpi_vtable();
+  host.frame_buffer_budget = pocket_display_esp_dpi_flip_budget(display);
+  host.display = pocket_display_esp_dpi_flip_vtable();
   host.display_context = display;
   host.input = pocket_input_esp_touch_vtable();
   host.input_context = touch;
