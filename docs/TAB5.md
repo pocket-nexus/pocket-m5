@@ -1,8 +1,11 @@
 # M5Stack Tab5
 
 ESP32-P4 (silicon revision v1.x) with 32 MiB PSRAM and 16 MiB flash, a 5-inch
-720×1280 MIPI-DSI panel and a capacitive touch controller. The PocketJS
-profile `m5stack-tab5` uses the panel in its native portrait orientation:
+720×1280 MIPI-DSI panel and a capacitive touch controller. This page
+describes the hardware and `programs/tab5`; `programs/m5stack-tab5` (from
+pocketjs#616) documents its own profiles and presentation in its README. The
+PocketJS profile `m5stack-tab5` of `programs/tab5` uses the panel in its
+native portrait orientation:
 **720×1280 physical, 360×640 logical, raster density 2, 60 Hz ticks.** Touch
 contacts must fit the 10-bit frame encoding, so the logical viewport stays
 below 1024 in each dimension.
@@ -51,7 +54,7 @@ the bus and have no driver in this repository yet.
 | 1 | P6 | USB-C VBUS detect | input with pull-down |
 | 1 | P7 | battery charge enable | high when `CONFIG_M5_TAB5_CHARGE_ENABLE` |
 
-## Presentation path
+## Presentation path (`programs/tab5`)
 
 The firmware creates the DPI panel with **two PSRAM frame buffers**
 (2 × 1,843,200 bytes). The runtime renders into the buffer not in scanout,
@@ -62,14 +65,18 @@ rasterizer. The panel refresh is 48.2 Hz (variant 1), 57.8 Hz (variant 2) or
 57.3 Hz (variant 3) at the timings in `m5_bsp_tab5/src/display.c`, so
 presentation is bounded by the panel rate.
 
-## Not supported yet
+## Not supported by `programs/tab5` yet
 
 Wi-Fi through the ESP32-C6, audio, camera, IMU, RTC, power monitor, USB host
 and device, landscape orientation, and the flash-resident app catalog.
+`programs/m5stack-tab5` covers Wi-Fi, the camera, media playback through the
+ES8388, the Tab5 keyboard, landscape pictures and a flash store; it reads the
+microSD card over SDSPI, since the ESP32-C6 link uses the SDMMC controller.
 
 ## Validation status
 
-The firmware builds for ESP32-P4 with ESP-IDF 6.1. Device validation on each
+`programs/tab5` builds for ESP32-P4 with the ESP-IDF development branch that
+reports version 6.2.0 (`v6.1-dev-8142-g188e3e55bb2`). Device validation on each
 panel variant is open: panel orientation (the ST7123 init table sets MADCTL
 0x03), touch alignment, flip timing, SD install and app switching have not
 been observed on hardware in this repository.

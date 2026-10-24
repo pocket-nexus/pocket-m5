@@ -12,12 +12,16 @@ pocket-m5/
 ├─ third_party/pocketjs/        PocketJS checkout pinned to a commit (submodule)
 ├─ platforms/esp-idf/           ESP-IDF components owned by this repository
 │  ├─ m5_bsp_tab5/              Tab5 board: I2C, expanders, rails, panel, touch, SD
-│  ├─ pocket_display_esp_dpi/   display output over a double-buffered DPI panel
+│  ├─ pocket_display_esp_dpi_flip/   display output over a double-buffered DPI panel
 │  ├─ pocket_input_esp_touch/   multi-contact input source over esp_lcd_touch
 │  └─ pocket_app_host/          package catalog, install inbox, guest switching
 ├─ programs/
-│  └─ tab5/                     IDF project: main.c, runtime config, profile, sdkconfig, partitions
-│     └─ profile.ts             m5stack-tab5: 720x1280 physical, 360x640 logical, density 2
+│  ├─ tab5/                     IDF project: main.c, runtime config, profile, sdkconfig, partitions
+│  │  └─ profile.ts             m5stack-tab5: 720x1280 physical, 360x640 logical, density 2
+│  └─ m5stack-tab5/             Hero, Clear and Pocket Home firmware (from pocketjs#616)
+│     ├─ components/            pocket_system, pocket_camera, pocket_media (this program only)
+│     ├─ profiles/              tab5-hero, tab5-clear, tab5-home
+│     └─ apps/                  Tab5 manifests of pocketjs apps/hero and apps/clear
 ├─ apps/
 │  ├─ home/                     launcher embedded in the firmware
 │  └─ hello/                    installable sample
@@ -31,7 +35,7 @@ pocket-m5/
 brings up the hardware and returns esp_lcd and esp_lcd_touch handles. A second
 board adds `platforms/esp-idf/m5_bsp_<board>/`.
 
-**PocketJS adapters are board-independent.** `pocket_display_esp_dpi`,
+**PocketJS adapters are board-independent.** `pocket_display_esp_dpi_flip`,
 `pocket_input_esp_touch` and `pocket_app_host` implement the driver and host
 contracts from `third_party/pocketjs/contracts/generated` against ESP-IDF
 APIs. They take handles from the program, not from a BSP.
@@ -43,6 +47,17 @@ starts the host. The program owns its profile (`programs/tab5/profile.ts`);
 whose `pocket_profile.facts` record the runtime admits packages against, and
 compiles `apps/home` against the same profile. A profile shared by several
 programs would live in `profiles/`.
+
+**Components one program uses stay with that program.**
+`programs/m5stack-tab5/components/` holds the launcher services, camera and
+media components of that firmware. It builds on board-independent drivers
+from the submodule (`pocket_display_esp_dpi`, `pocket_render_esp_ppa` with
+its two-lane factory, `pocket_runner`) and on Espressif's
+`m5stack_tab5_noglib` BSP; it reads the microSD card over SDSPI because the
+ESP32-C6 radio takes the SDMMC controller. Its display component and this
+repository's `pocket_display_esp_dpi_flip` are separate drivers: the first
+presents strips into one framebuffer with rotation, scaling and retained
+moves, the second flips between two framebuffers.
 
 **The profile is the app contract.** Every installed package carries a variant
 whose profile hash equals the program's. Changing any hashed profile field

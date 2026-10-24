@@ -10,9 +10,9 @@ Architecture and implementation notes belong in `docs/`, not here.
   `test`, `build`, `ci`, `chore`, `style`, `revert`. The `commit-msg` hook
   runs commitlint with `commitlint.config.mjs`.
 - The scope names the directory the change touches: a component
-  (`m5-bsp-tab5`, `display-esp-dpi`, `input-esp-touch`, `app-host`), a
-  program (`tab5`), an app (`home`, `hello`), `profiles`, `tools`, `docs` or
-  `deps`. Omit the scope only for repository-wide changes.
+  (`m5-bsp-tab5`, `display-esp-dpi-flip`, `input-esp-touch`, `app-host`), a
+  program (`tab5`, `m5stack-tab5`), an app (`home`, `hello`), `profiles`,
+  `tools`, `docs` or `deps`. Omit the scope only for repository-wide changes.
 - The header is at most 72 characters; the summary is imperative, lower case,
   without a trailing period.
 - One logical change per commit. Formatting-only changes to existing code go
@@ -55,9 +55,11 @@ Architecture and implementation notes belong in `docs/`, not here.
 
 - Board support for one board: `platforms/esp-idf/m5_bsp_<board>/`.
 - Drivers implementing PocketJS contracts: `platforms/esp-idf/pocket_<name>/`.
-- Firmware composition, `sdkconfig.defaults`, partitions, runtime config and
-  the program's own profile (`profile.ts`): `programs/<board>/`. A profile
-  shared by several programs goes in `profiles/<profile-id>.ts`.
+- Firmware composition, `sdkconfig.defaults`, partitions, runtime configs and
+  the program's own profiles (`profile.ts`, or `profiles/` for several):
+  `programs/<program>/`. A profile shared by several programs goes in
+  `profiles/<profile-id>.ts`.
+- Components that only one program uses: `programs/<program>/components/`.
 - Apps: `apps/<name>/` with a `pocket.json`.
 - Build, packaging and repository scripts: `tools/`.
 
