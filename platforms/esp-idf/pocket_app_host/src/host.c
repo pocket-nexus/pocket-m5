@@ -17,12 +17,6 @@
 
 static const char *TAG = "pocket_host";
 
-/* Application operations from the OP table in contracts/spec/spec.ts. The
- * numbers are append-only. */
-#define OP_APP_TABLE 39
-#define OP_APP_LAUNCH 40
-#define OP_APP_SHOT 41
-
 #define CONTACTS_MAX 16
 #define OUTPUT_MAX sizeof(((package_identity *)0)->output)
 #define MESSAGE_MAX 256
@@ -202,14 +196,14 @@ static int32_t dispatch(void *context, uint16_t op, const pocket_op_arg *args,
   const size_t size = out->struct_size;
   *out = (pocket_result){.struct_size = size, .tag = POCKET_RESULT_NONE};
   switch (op) {
-  case OP_APP_TABLE:
+  case POCKET_OP_appTable:
     if (!build_table(h))
       return POCKET_STATUS_FAILED;
     out->tag = POCKET_RESULT_BYTES;
     out->bytes = (const uint8_t *)h->table.data;
     out->byte_length = h->table.length;
     return POCKET_STATUS_OK;
-  case OP_APP_LAUNCH: {
+  case POCKET_OP_appLaunch: {
     if (!args || length < sizeof(*args) || args->struct_size < sizeof(*args) ||
         args->tag != POCKET_ARG_BYTES || (args->byte_length && !args->bytes))
       return POCKET_STATUS_INVALID;
@@ -224,7 +218,7 @@ static int32_t dispatch(void *context, uint16_t op, const pocket_op_arg *args,
     out->integer = accepted;
     return POCKET_STATUS_OK;
   }
-  case OP_APP_SHOT:
+  case POCKET_OP_appShot:
     /* No frozen frame is captured on a summon. */
     out->tag = POCKET_RESULT_I64;
     out->integer = -1;
@@ -235,7 +229,8 @@ static int32_t dispatch(void *context, uint16_t op, const pocket_op_arg *args,
 
 static const pocket_op_provider_v1 PROVIDER = {.struct_size = sizeof(PROVIDER),
                                                .dispatch = dispatch};
-static const uint16_t OPERATIONS[] = {OP_APP_TABLE, OP_APP_LAUNCH, OP_APP_SHOT};
+static const uint16_t OPERATIONS[] = {POCKET_OP_appTable, POCKET_OP_appLaunch,
+                                      POCKET_OP_appShot};
 
 /* ---- input policy ---- */
 
