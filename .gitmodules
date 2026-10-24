@@ -1,4 +1,4 @@
 [submodule "third_party/pocketjs"]
 	path = third_party/pocketjs
 	url = https://github.com/pocket-nexus/pocketjs.git
-	branch = main
+	branch = feat/tab5-platform
