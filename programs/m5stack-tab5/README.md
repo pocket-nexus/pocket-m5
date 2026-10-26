@@ -9,8 +9,8 @@ IDF archive and `engine/host-services` come from `third_party/pocketjs`; the
 program, its components and its profiles live here.
 
 The program was imported from pocket-nexus/pocketjs#616 (`df0d434a`), whose
-platform and engine changes are on the pocketjs branch the submodule pins
-(`feat/tab5-platform`).
+platform and engine changes reached pocketjs `main` through
+pocket-nexus/pocketjs#617.
 
 | Build | Profile | Picture |
 | --- | --- | --- |
