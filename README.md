@@ -9,12 +9,17 @@ between them on the device.
 | --- | --- | --- |
 | [Tab5](docs/TAB5.md) | ESP32-P4 | 720×1280 MIPI-DSI (ILI9881C, ST7123, ST7121 variants), capacitive touch |
 
-The Tab5 has two firmware programs:
+The Tab5 has two application firmware programs:
 
 | Program | Pictures | Apps and switching | Status |
 | --- | --- | --- | --- |
 | [`programs/tab5`](programs/tab5/README.md) | 360×640 portrait at density 2, double-buffered flip | embedded home; packages from the SD card inbox; swipe up for home | builds; device validation open |
 | [`programs/m5stack-tab5`](programs/m5stack-tab5/README.md) | Hero 640×360 landscape, Clear 360×640 portrait, Pocket Home 640×360 at 2x | pocket-shell's Pocket Home; installs over the Pocket Link from a Mac; home ball; Wi-Fi, camera, media, keyboard | imported from pocketjs#616, measured on the device there |
+
+The separate [`programs/tab5-worker`](programs/tab5-worker/README.md)
+diagnostic exercises onboard RTC/IMU I2C, UART loopback, and UI/worker channels.
+The normal launcher can enable the same worker components with its worker
+profile; see [Worker IO](docs/WORKER.md).
 
 ## Requirements
 
@@ -57,6 +62,7 @@ the home screen. Swipe up from the bottom edge to return home. See
 
 - [Repository structure](docs/STRUCTURE.md)
 - [M5Stack Tab5](docs/TAB5.md): panel variants, pins, expanders, presentation
+- [Worker IO](docs/WORKER.md): isolated runtime, UART/I2C ownership, sensors and validation
 - [Apps](docs/APPS.md): build, install, switch, errors
 - [Engineering conventions](AGENTS.md): commits, formatting, dependencies
 

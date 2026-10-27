@@ -1,0 +1,60 @@
+{
+  "$schema": "https://pocketjs.dev/schema/pocket-2.json",
+  "pocket": 2,
+  "id": "dev.pocket-nexus.m5.worker-io",
+  "name": "m5-worker-io",
+  "title": "Tab5 Worker IO",
+  "version": "0.1.0",
+  "engine": {
+    "capabilities": {
+      "requires": [
+        "runtime.worker",
+        "io.i2c",
+        "io.uart",
+        "input.touch",
+        "text.glyphs.baked"
+      ]
+    }
+  },
+  "app": {
+    "entry": "main.tsx",
+    "output": "worker-io",
+    "framework": "solid",
+    "viewport": {
+      "logical": [
+        360,
+        640
+      ],
+      "presentation": "native"
+    },
+    "worker": {
+      "entry": "worker.ts",
+      "nodes": [
+        {
+          "name": "i2c0",
+          "kind": "i2c"
+        },
+        {
+          "name": "uart1",
+          "kind": "uart"
+        }
+      ],
+      "channels": [
+        {
+          "name": "state",
+          "kind": "snapshot",
+          "direction": "worker-to-ui",
+          "recordBytes": 96,
+          "capacity": 1
+        },
+        {
+          "name": "commands",
+          "kind": "ring",
+          "direction": "ui-to-worker",
+          "recordBytes": 16,
+          "capacity": 4
+        }
+      ]
+    }
+  }
+}

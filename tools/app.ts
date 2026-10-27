@@ -14,13 +14,15 @@ const option = (name: string) => {
   return index >= 0 ? rest[index + 1] : undefined;
 };
 const usage = () => {
-  console.error("usage: bun run app build|install <pocket.json> [--board <board>] [--sd <mount>]");
+  console.error("usage: bun run app build|install <pocket.json> [--board <board>] [--runtime-config <path>] [--sd <mount>]");
   process.exit(2);
 };
 if ((command !== "build" && command !== "install") || !manifestArgument) usage();
 
 const board = option("--board") ?? "tab5";
-const runtimeConfig = join(root, "programs", board, "pocket.runtime-config.ts");
+const runtimeConfig = option("--runtime-config") ? resolve(option("--runtime-config")!)
+  : join(root, "programs", board, "pocket.runtime-config.ts");
+const frameworkRoot = process.env.POCKETJS_ROOT ?? join(root, "third_party", "pocketjs");
 if (!existsSync(runtimeConfig)) {
   console.error(`no runtime config for board ${board}: ${runtimeConfig}`);
   process.exit(2);
@@ -31,7 +33,7 @@ const buildRoot = join(root, ".pocket-build", "apps", board);
 const pocket = join(buildRoot, `${output}.pocket`);
 const compile = spawnSync(
   "bun",
-  [join(root, "third_party", "pocketjs", "tools", "pocket.ts"), "compile",
+  [join(frameworkRoot, "tools", "pocket.ts"), "compile",
     "--manifest", manifest, "--runtime-config", runtimeConfig,
     "--project-root", dirname(manifest), "--outdir", join(buildRoot, output),
     "--plan-dir", join(buildRoot, output, "plans"), "--output", pocket],

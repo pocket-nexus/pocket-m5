@@ -1,7 +1,11 @@
 cmake_minimum_required(VERSION 3.22)
 
 get_filename_component(m5_root "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
-set(pocketjs_components "${m5_root}/third_party/pocketjs/platforms/esp-idf")
+set(POCKETJS_ROOT "${m5_root}/third_party/pocketjs" CACHE PATH "PocketJS source checkout")
+option(POCKETJS_ENABLE_WORKER "Compile optional worker host and IO drivers" OFF)
+set(ENV{POCKETJS_ENABLE_WORKER} "${POCKETJS_ENABLE_WORKER}")
+set(ENV{POCKETJS_ROOT} "${POCKETJS_ROOT}")
+set(pocketjs_components "${POCKETJS_ROOT}/platforms/esp-idf")
 list(APPEND EXTRA_COMPONENT_DIRS
     "${pocketjs_components}/pocket_runtime"
     "${pocketjs_components}/pocket_guest_quickjs"
@@ -14,7 +18,13 @@ list(APPEND EXTRA_COMPONENT_DIRS
 if(NOT DEFINED POCKETJS_RUST_FROM_SOURCE)
     set(POCKETJS_RUST_FROM_SOURCE ON CACHE BOOL "")
 endif()
-set(POCKETJS_CLI "${m5_root}/tools/pocket" CACHE FILEPATH "PocketJS CLI")
+# Build commands run after CMake exits, so preserve the chosen checkout in a
+# generated launcher rather than relying on CMake's process environment.
+file(WRITE "${CMAKE_BINARY_DIR}/pocket-cli"
+    "#!/bin/sh\nexec bun \"${POCKETJS_ROOT}/tools/pocket.ts\" \"$@\"\n")
+file(CHMOD "${CMAKE_BINARY_DIR}/pocket-cli"
+    PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+set(POCKETJS_CLI "${CMAKE_BINARY_DIR}/pocket-cli" CACHE FILEPATH "PocketJS CLI")
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 idf_build_set_property(MINIMAL_BUILD ON)

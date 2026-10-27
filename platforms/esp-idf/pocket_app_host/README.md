@@ -48,3 +48,19 @@ destroyed. Per session the runtime heap is bounded by `runtime_heap_limit` and
 the QuickJS heap by `guest_heap_limit`. The task stack must exceed
 `guest_stack_limit`, since runtime operations called from JavaScript run on
 the same stack.
+
+## Optional worker session
+
+`CONFIG_POCKET_APP_HOST_WORKER` enables the worker configuration in
+`pocket_app_host_config`. The normal Tab5 program also selects its CMake
+worker dependencies with `POCKETJS_ENABLE_WORKER=ON`. An admitted section 8
+bootstraps a worker and mounts its channel bridge before UI evaluation.
+Worker turns resume after UI bootstrap. The host latches channel records
+before a UI tick and detaches the bridge before worker shutdown on app switch.
+
+`task_stack_caps=0` keeps the default internal task stack. The worker-enabled
+Tab5 composition sets PSRAM capabilities for the UI owner stack, preserving
+its stack size. That owner must not perform cache-disabled flash/NVS or
+deep-sleep operations. The current host task lives for the firmware lifetime;
+a future destroy operation must join it and use `vTaskDeleteWithCaps` for a
+capabilities-allocated stack. See [worker memory and IO limits](../../../docs/WORKER.md).

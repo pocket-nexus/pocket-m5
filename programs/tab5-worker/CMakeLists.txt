@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.22)
+get_filename_component(m5_root "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
+set(POCKETJS_ROOT "${m5_root}/third_party/pocketjs" CACHE PATH "Worker-enabled PocketJS source checkout")
+list(APPEND EXTRA_COMPONENT_DIRS "${m5_root}/platforms/esp-idf")
+include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+idf_build_set_property(MINIMAL_BUILD ON)
+project(pocket_m5_worker)

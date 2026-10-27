@@ -1,0 +1,11 @@
+menu "PocketJS application host"
+    config POCKET_APP_HOST_WORKER
+        bool "Enable independent worker realms"
+        default n
+        help
+            Requires a worker-enabled PocketJS checkout selected with
+            POCKETJS_ROOT and -DPOCKETJS_ENABLE_WORKER=ON in the Tab5
+            program. Firmware supplies permitted IO nodes in the host
+            worker configuration. Each app worker stops before its package
+            storage and UI realm are released.
+endmenu

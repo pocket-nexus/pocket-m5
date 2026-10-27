@@ -1,5 +1,6 @@
 /* M5Stack Tab5 firmware: board bring-up, PocketJS drivers and the multi-app
  * host. app_main runs on CPU0; the DSI panel and the host task share it. */
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "m5/tab5.h"
 #include "pocket/app_host.h"
@@ -8,6 +9,12 @@
 #include "pocket_profile.h"
 #include "pocketjs_package_home.h"
 #include "sdkconfig.h"
+#ifdef CONFIG_TAB5_UI_VALIDATION
+#include "validation.h"
+#endif
+#ifdef CONFIG_POCKET_APP_HOST_WORKER
+#include "pocket/io_esp.h"
+#endif
 #if CONFIG_TAB5_RENDERER_PPA
 #include "pocketjs/esp32p4_ppa_status.h"
 #endif
@@ -108,8 +115,63 @@ void app_main(void) {
   host.apps_dir = sd == ESP_OK ? SD_MOUNT "/pocket/apps" : NULL;
   host.inbox_dir = sd == ESP_OK ? SD_MOUNT "/pocket/inbox" : NULL;
   host.task_core = 0;
+#ifdef CONFIG_POCKET_APP_HOST_WORKER
+  /* UI JS and runtime heaps already use PSRAM. Keep the original UI stack
+   * budgets, but reserve internal RAM for the isolated worker heap. */
+  host.task_stack_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+  static const uint8_t addresses[] = {0x32, 0x68};
+  const pocket_i2c_esp_config i2c_config = {.struct_size = sizeof(i2c_config),
+                                            .bus = m5_tab5_i2c(),
+                                            .addresses = addresses,
+                                            .address_count = 2,
+                                            .speed_hz = 400000,
+                                            .max_transaction_bytes = 256,
+                                            .max_timeout_ms = 20,
+                                            .task_core = 1};
+  pocket_i2c_esp *i2c = pocket_i2c_esp_create(&i2c_config);
+  const pocket_uart_esp_config uart_config = {.struct_size =
+                                                  sizeof(uart_config),
+                                              .port = UART_NUM_1,
+                                              .tx_pin = 53,
+                                              .rx_pin = 54,
+                                              .rts_pin = -1,
+                                              .cts_pin = -1,
+                                              .max_baud = 115200,
+                                              .loopback = false,
+                                              .task_core = 1};
+  pocket_uart_esp *uart = pocket_uart_esp_create(&uart_config);
+  if (!i2c || !uart) {
+    ESP_LOGE(TAG, "worker IO driver creation failed");
+    return;
+  }
+  static pocket_worker_node nodes[2];
+  nodes[0] = (pocket_worker_node){.struct_size = sizeof(nodes[0]),
+                                  .kind = POCKET_WORKER_I2C,
+                                  .name = "i2c0",
+                                  .driver = pocket_i2c_esp_driver(i2c)};
+  nodes[1] = (pocket_worker_node){.struct_size = sizeof(nodes[1]),
+                                  .kind = POCKET_WORKER_UART,
+                                  .name = "uart1",
+                                  .driver = pocket_uart_esp_driver(uart)};
+  static pocket_worker_esp_config worker;
+  worker = (pocket_worker_esp_config){.struct_size = sizeof(worker),
+                                      .nodes = nodes,
+                                      .node_count = 2,
+                                      .heap_limit = 384 * 1024,
+                                      .stack_limit = 16 * 1024,
+                                      .task_stack_size = 24 * 1024,
+                                      .turn_micros = 10000,
+                                      .window_micros = 100000,
+                                      .quota_micros = 50000,
+                                      .task_core = 1,
+                                      .task_priority = 3};
+  host.worker = &worker;
+#endif
 
   pocket_app_host *app_host = NULL;
+#ifdef CONFIG_TAB5_UI_VALIDATION
+  ESP_ERROR_CHECK(tab5_validation_install(&host));
+#endif
   ESP_ERROR_CHECK(pocket_app_host_start(&host, &app_host));
   ESP_LOGI(TAG, "panel %s, host started", m5_tab5_panel_name(lcd.kind));
 }

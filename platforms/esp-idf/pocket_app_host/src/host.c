@@ -4,9 +4,14 @@
 #include "esp_rom_sys.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/idf_additions.h"
 #include "freertos/task.h"
 #include "package_info.h"
 #include "pocket/app_host.h"
+#ifdef CONFIG_POCKET_APP_HOST_WORKER
+#include "pocket/package_facts.h"
+#include "pocket/worker_ui.h"
+#endif
 #include "pocket/guest_idf.h"
 #include "pocket/package_source.h"
 #include <stdbool.h>
@@ -43,6 +48,11 @@ struct pocket_app_host {
   /* Current session. */
   pocket_runtime *runtime;
   pocket_guest_idf *guest;
+#ifdef CONFIG_POCKET_APP_HOST_WORKER
+  pocket_worker_esp *worker;
+  pocket_worker_ui *worker_ui;
+  uint32_t worker_generation;
+#endif
   pocket_memory_package package;
   uint8_t *package_storage;
   const catalog_app *app; /* null while home runs */
@@ -359,6 +369,18 @@ static const pocket_input_source_v1 PROXY = {
 /* ---- sessions ---- */
 
 static void session_end(pocket_app_host *h) {
+#ifdef CONFIG_POCKET_APP_HOST_WORKER
+  if (h->worker_ui) {
+    pocket_worker_ui_detach(h->worker_ui);
+    h->worker_ui = NULL;
+  }
+  if (h->worker) {
+    /* A timeout cannot release package bytes still referenced by native IO. */
+    while (pocket_worker_esp_stop(h->worker, 1000) == ESP_ERR_TIMEOUT)
+      ESP_LOGW(TAG, "waiting for worker native resources to stop");
+    h->worker = NULL;
+  }
+#endif
   /* Runtime destruction drains rendering and display work first. */
   if (h->runtime)
     pocket_runtime_destroy(h->runtime);
@@ -463,6 +485,53 @@ static bool session_start(pocket_app_host *h, const catalog_app *app,
   h->suppress = true;
   h->edge_count = 0;
   h->forwarded_count = 0;
+  const char *worker_source = NULL;
+  size_t worker_size = 0;
+  const char *worker_error =
+      package_worker_memory(h->package.data, h->package.size, &h->profile,
+                            &worker_source, &worker_size);
+  if (worker_error) {
+    snprintf(message, MESSAGE_MAX, "%s", worker_error);
+    goto failed;
+  }
+  if (worker_source) {
+#ifdef CONFIG_POCKET_APP_HOST_WORKER
+    if (!h->config.worker || h->worker_generation == UINT32_MAX) {
+      snprintf(message, MESSAGE_MAX, "worker host is unavailable");
+      goto failed;
+    }
+    pocket_idf_package_facts facts = {.struct_size = sizeof(facts)};
+    const int32_t admitted = pocket_idf_package_open(
+        h->package.data, h->package.size, h->profile.target,
+        h->profile.target_length, h->profile.host_abi, h->profile.profile_hash,
+        &facts);
+    if (admitted != 0) {
+      snprintf(message, MESSAGE_MAX, "worker package admission: %d",
+               (int)admitted);
+      goto failed;
+    }
+    pocket_worker_esp_config worker = *h->config.worker;
+    worker.source = worker_source;
+    worker.source_size = worker_size;
+    worker.generation = ++h->worker_generation;
+    worker.defer_turns = true;
+    const esp_err_t result = pocket_worker_esp_start(&worker, &h->worker);
+    if (result != ESP_OK) {
+      snprintf(message, MESSAGE_MAX, "worker startup: %s",
+               esp_err_to_name(result));
+      goto failed;
+    }
+    h->worker_ui = pocket_worker_ui_attach(pocket_guest_idf_context(h->guest),
+                                           pocket_worker_esp_core(h->worker));
+    if (!h->worker_ui) {
+      snprintf(message, MESSAGE_MAX, "worker channel bridge creation failed");
+      goto failed;
+    }
+#else
+    snprintf(message, MESSAGE_MAX, "package requires a worker-enabled host");
+    goto failed;
+#endif
+  }
   status = pocket_runtime_boot(h->runtime);
   if (status) {
     const char *guest_error = pocket_guest_idf_error(h->guest);
@@ -471,6 +540,10 @@ static bool session_start(pocket_app_host *h, const catalog_app *app,
              guest_error ? guest_error : "");
     goto failed;
   }
+#ifdef CONFIG_POCKET_APP_HOST_WORKER
+  if (h->worker)
+    pocket_worker_esp_resume(h->worker);
+#endif
   ESP_LOGI(TAG, "running %s; free internal %u, PSRAM %u",
            app ? app->identity.output : h->home.output,
            (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
@@ -505,6 +578,9 @@ static bool run_session(pocket_app_host *h, char *message) {
     return false;
   }
   bool ok = true;
+#ifdef CONFIG_POCKET_APP_HOST_WORKER
+  uint32_t frames = 0;
+#endif
   while (!h->switch_requested) {
     uint64_t deadline = 0;
     if (pocket_tick_schedule_deadline(schedule, &deadline)) {
@@ -523,6 +599,26 @@ static bool run_session(pocket_app_host *h, char *message) {
     }
     if (!ready)
       continue;
+#ifdef CONFIG_POCKET_APP_HOST_WORKER
+    if (h->worker_ui &&
+        pocket_worker_ui_latch(h->worker_ui) != POCKET_WORKER_OK) {
+      snprintf(message, MESSAGE_MAX, "worker channel latch failed");
+      ok = false;
+      break;
+    }
+    if (h->worker && pocket_worker_esp_failed(h->worker)) {
+      snprintf(message, MESSAGE_MAX, "worker domain failed");
+      ok = false;
+      break;
+    }
+#endif
+#ifdef CONFIG_POCKET_APP_HOST_WORKER
+    if (h->worker && ++frames % (h->config.tick_hz * 5) == 0)
+      ESP_LOGI(TAG, "worker UI frames=%lu stack_min_free=%u internal_free=%u",
+               (unsigned long)frames,
+               (unsigned)uxTaskGetStackHighWaterMark(NULL),
+               (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+#endif
     const int32_t status = pocket_runtime_tick(h->runtime);
     if (status) {
       const char *guest_error = pocket_guest_idf_error(h->guest);
@@ -614,7 +710,10 @@ esp_err_t pocket_app_host_start(const pocket_app_host_config *config,
   if (!h)
     return ESP_ERR_NO_MEM;
   h->config = *config;
-  h->profile = (package_profile){config->profile_hash, config->host_abi};
+  h->profile = (package_profile){.profile_hash = config->profile_hash,
+                                 .host_abi = config->host_abi,
+                                 .target = config->profile->id,
+                                 .target_length = config->profile->id_length};
   h->logical_height = (float)facts->display->logical[1];
   const char *error = package_identity_memory(
       config->home_package, config->home_package_size, &h->profile, &h->home);
@@ -623,9 +722,16 @@ esp_err_t pocket_app_host_start(const pocket_app_host_config *config,
     free(h);
     return ESP_ERR_INVALID_ARG;
   }
-  if (xTaskCreatePinnedToCore(
-          host_task, config->task_name, config->task_stack_bytes, h,
-          config->task_priority, NULL, config->task_core) != pdPASS) {
+  const BaseType_t created =
+      config->task_stack_caps
+          ? xTaskCreatePinnedToCoreWithCaps(
+                host_task, config->task_name, config->task_stack_bytes, h,
+                config->task_priority, NULL, config->task_core,
+                config->task_stack_caps)
+          : xTaskCreatePinnedToCore(
+                host_task, config->task_name, config->task_stack_bytes, h,
+                config->task_priority, NULL, config->task_core);
+  if (created != pdPASS) {
     free(h);
     return ESP_ERR_NO_MEM;
   }

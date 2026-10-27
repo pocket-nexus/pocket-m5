@@ -140,6 +140,6 @@ direct_dependencies:
 - espressif/quickjs-ng
 - idf
 - pocket-nexus/pocket_runtime
-manifest_hash: 23163364f9521bbd5b1a88bc4e6243292e63a7824030bd03645fd2c1a77b0d52
+manifest_hash: 242a5703b00dbc911a1e967dd2a8ae993ddb101419c682e64aa6f7fd2be56c71
 target: esp32p4
 version: 3.0.0

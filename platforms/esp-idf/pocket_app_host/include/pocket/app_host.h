@@ -1,6 +1,10 @@
 #pragma once
 #include "esp_err.h"
 #include "pocket_runtime.h"
+#include "sdkconfig.h"
+#ifdef CONFIG_POCKET_APP_HOST_WORKER
+#include "pocket/worker_esp.h"
+#endif
 #include <stddef.h>
 #include <stdint.h>
 
@@ -49,8 +53,19 @@ typedef struct {
    * and driver frames. */
   const char *task_name;
   uint32_t task_stack_bytes;
+  /* Zero uses IDF's default internal stack. Nonzero selects the capabilities
+   * passed to xTaskCreatePinnedToCoreWithCaps (for example PSRAM). A PSRAM
+   * owner must not run cache-disabled flash/NVS or deep-sleep operations.
+   * A future host destroy API must join and use vTaskDeleteWithCaps. */
+  uint32_t task_stack_caps;
   int task_priority, task_core;
   uint64_t max_lag_us;
+#ifdef CONFIG_POCKET_APP_HOST_WORKER
+  /* Source and generation are supplied from the admitted app session. Node
+   * declarations and driver objects are firmware-owned for the host lifetime.
+   */
+  const pocket_worker_esp_config *worker;
+#endif
 } pocket_app_host_config;
 
 void pocket_app_host_config_defaults(pocket_app_host_config *config);

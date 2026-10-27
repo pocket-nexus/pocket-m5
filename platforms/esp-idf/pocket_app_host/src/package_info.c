@@ -171,3 +171,53 @@ const char *package_verify_file(FILE *file, uint64_t size) {
     stored = stored << 8 | footer[i];
   return stored == hash ? NULL : "package checksum mismatch";
 }
+
+const char *package_worker_memory(const uint8_t *data, size_t size,
+                                  const package_profile *profile,
+                                  const char **source, size_t *source_size) {
+  if (!data || !profile || !profile->profile_hash || !profile->target ||
+      !profile->target_length || !source || !source_size ||
+      size < HEADER_SIZE + FOOTER_SIZE)
+    return "invalid worker package";
+  *source = NULL;
+  *source_size = 0;
+  if (u32(data) != PACKAGE_MAGIC || u32(data + 4) != PACKAGE_VERSION)
+    return "unsupported worker package";
+  const reader r = {.size = size};
+  const uint64_t table = HEADER_SIZE + ((uint64_t)u32(data + 8) + 15) / 16 * 16;
+  const uint32_t variants = u32(data + 12);
+  if (!variants || variants > MAX_VARIANTS ||
+      !within(&r, table, (uint64_t)variants * VARIANT_SIZE))
+    return "worker variant table exceeds package";
+  for (uint32_t v = 0; v < variants; ++v) {
+    const uint8_t *variant = data + table + (uint64_t)v * VARIANT_SIZE;
+    if (u32(variant + 8) != profile->host_abi ||
+        memcmp(variant + 32, profile->profile_hash, 32))
+      continue;
+    const uint64_t target_offset = u32(variant),
+                   target_length = u32(variant + 4);
+    if (!within(&r, target_offset, target_length))
+      return "worker variant target exceeds package";
+    if (target_length != profile->target_length ||
+        memcmp(data + target_offset, profile->target, (size_t)target_length))
+      continue;
+    const uint32_t count = u32(variant + 12);
+    const uint64_t offset = u32(variant + 16);
+    if (count > MAX_SECTIONS ||
+        !within(&r, offset, (uint64_t)count * SECTION_SIZE))
+      return "worker section table exceeds package";
+    for (uint32_t s = 0; s < count; ++s) {
+      const uint8_t *section = data + offset + (uint64_t)s * SECTION_SIZE;
+      if (u32(section) != 8)
+        continue;
+      const uint64_t start = u32(section + 8), length = u32(section + 12);
+      if (*source || length < 2 || length > 1024 * 1024 ||
+          !within(&r, start, length) || data[start + length - 1] != 0)
+        return "invalid worker source section";
+      *source = (const char *)(data + start);
+      *source_size = (size_t)length - 1;
+    }
+    return NULL;
+  }
+  return "no worker variant for host profile";
+}
