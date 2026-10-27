@@ -7,7 +7,7 @@ export default function Hello() {
   const [count, setCount] = createSignal(0);
   return (
     <View class="w-full h-full flex-col items-center justify-center gap-6 bg-slate-50">
-      <Text class="text-3xl text-slate-950 font-bold">Hello, Tab5</Text>
+      <Text class="text-4xl text-slate-950 font-bold">Hello, Tab5</Text>
       <View
         focusable
         onPress={() => setCount(count() + 1)}
