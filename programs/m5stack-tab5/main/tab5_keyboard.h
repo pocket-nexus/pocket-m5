@@ -7,20 +7,23 @@
  * pocket_text_event records: a character commits, a named key is a key
  * down and up pair named as KeyboardEvent.key names it (Enter, Backspace,
  * ArrowLeft), and a character with Ctrl or Alt held is a key pair named
- * Control+c or Alt+c. */
+ * Control+c or Alt+c.
+ *
+ * The keyboard is an accessory: the program polls without one, probes the
+ * bus for one every two seconds while none answers, and lets one go after
+ * three polls it does not answer, so it plugs in and out without a reboot. */
 #pragma once
 
-#include <stdbool.h>
 #include <stddef.h>
-#include <stdint.h>
 
 #include "pocket_runtime.h"
 
-/* Bring the keyboard up in character mode; false when none answers. */
-bool tab5_keyboard_start(void);
+/* Open the keyboard's bus and bring a keyboard that answers into character
+ * mode; without one the polls keep probing. */
+void tab5_keyboard_start(void);
 
-/* Pending presses as text events. The events' text points into `storage`,
- * which the caller keeps until the input frame is appended. Returns the
- * count written, at most `capacity`. */
+/* Pending presses as text events, none without a keyboard. The events' text
+ * points into `storage`, which the caller keeps until the input frame is
+ * appended. Returns the count written, at most `capacity`. */
 size_t tab5_keyboard_poll(pocket_text_event *events, size_t capacity,
                           char *storage, size_t storage_size);

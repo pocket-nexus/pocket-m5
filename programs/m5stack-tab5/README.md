@@ -56,11 +56,15 @@ its direction (`ball gesture: up`) where an effect attaches later.
 
 The Tab5 keyboard (M5Stack A164, `tab5_keyboard.c`) answers at I2C address
 0x6D on Ext.Port1 (SDA GPIO 0, SCL GPIO 1, the program's second I2C bus).
-When one answers at boot the input source declares the TEXT class and the
-profile's `input.text` holds: each poll drains the keyboard's character
-events into `pocket_text_event` records, a character as a commit and a named
-key as a down and up pair named as `KeyboardEvent.key` names it (`Enter`,
-`Backspace`, `ArrowLeft`). The keyboard keeps its own Sym and Aa layers. Its
+The input source declares the TEXT class with or without a keyboard, so the
+Home profile's `input.text` holds and the firmware boots without one. The
+program probes the bus for a keyboard at boot and every two seconds while
+none answers, and lets one go after three polls it does not answer, so the
+keyboard plugs in and out without a reboot. Each poll drains the keyboard's
+character events into `pocket_text_event` records, a character as a commit
+and a named key as a down and up pair named as `KeyboardEvent.key` names it
+(`Enter`, `Backspace`, `ArrowLeft`). The keyboard keeps its own Sym and Aa
+layers. Its
 firmware 1 reports Ctrl in every event once the key was pressed and never
 clears it, so the program reads no modifier from it; `Control+z` waits for
 a firmware that releases the key.
