@@ -11,7 +11,11 @@ typedef struct {
   const char *source;
   size_t source_size;
   uint32_t heap_limit, stack_limit, task_stack_size;
-  uint32_t turn_micros, window_micros, quota_micros;
+  /* Optional CPU share: at most quota_micros of JS per window_micros. Zero
+   * quota disables it. Set it only when the worker task shares a core with
+   * the UI task at a higher priority; FreeRTOS gives a lower-priority UI no
+   * time against a busy worker. There is no execution time limit. */
+  uint32_t window_micros, quota_micros;
   int task_core;
   unsigned task_priority;
   /* Bootstrap channels/resources, then wait for resume before executing turns.
@@ -22,8 +26,9 @@ typedef struct {
 /* Source, node table and driver objects must outlive the runner. */
 esp_err_t pocket_worker_esp_start(const pocket_worker_esp_config *config,
                                   pocket_worker_esp **out);
-/* Stops JS dispatch, joins all native users, then destroys the realm. A
- * timeout preserves the runner and its buffers; call stop again to join. */
+/* Stops JS dispatch, interrupting a turn in progress, joins all native users,
+ * then destroys the realm. A timeout preserves the runner and its buffers;
+ * call stop again to join. */
 esp_err_t pocket_worker_esp_stop(pocket_worker_esp *worker,
                                  uint32_t timeout_ms);
 /* Release a bootstrap-only runner after its UI owner finishes booting. */

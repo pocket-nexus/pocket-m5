@@ -160,9 +160,9 @@ void app_main(void) {
                                       .heap_limit = 384 * 1024,
                                       .stack_limit = 16 * 1024,
                                       .task_stack_size = 24 * 1024,
-                                      .turn_micros = 10000,
-                                      .window_micros = 100000,
-                                      .quota_micros = 50000,
+                                      /* The UI task runs on core 0; no share
+                                       * of core 1 is withheld from the
+                                       * worker. */
                                       .task_core = 1,
                                       .task_priority = 3};
   host.worker = &worker;

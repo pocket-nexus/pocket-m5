@@ -153,8 +153,8 @@ static JSValue console_log(JSContext *context, JSValueConst self, int argc,
   return JS_UNDEFINED;
 }
 /* Console transmission can block on UART/USB consumers. The runner calls
- * this after every turn, outside guest code, so the JS turn budget never
- * pays for it. */
+ * this after every turn, outside guest code, so a blocked console delays the
+ * next turn and never a running one. */
 static void drain_console(void *context) {
   pocket_worker_esp *host = context;
   for (unsigned i = 0; i < host->console_count; ++i)
@@ -219,8 +219,9 @@ static void run(void *opaque) {
         .realm = {.struct_size = sizeof(config.realm),
                   .heap_limit = host->config.heap_limit,
                   .stack_limit = host->config.stack_limit,
-                  .max_turn_micros = host->config.turn_micros,
-                  .max_jobs = 8,
+                  /* Each await resumes as one job; drivers resolved by the
+                   * same turn share this count before the next step. */
+                  .max_jobs = 64,
                   .max_facts = 16,
                   .max_bytes = 8192,
                   .window_micros = host->config.window_micros,
@@ -294,8 +295,8 @@ esp_err_t pocket_worker_esp_start(const pocket_worker_esp_config *config,
   if (!config || config->struct_size < sizeof(*config) || !out ||
       !config->source || !config->source_size || !config->heap_limit ||
       !config->stack_limit || config->task_stack_size < 8192 ||
-      !config->generation || !config->turn_micros || !config->quota_micros ||
-      config->quota_micros >= config->window_micros)
+      !config->generation ||
+      (config->quota_micros && config->quota_micros > config->window_micros))
     return ESP_ERR_INVALID_ARG;
   *out = NULL;
   pocket_worker_esp *host = calloc(1, sizeof(*host));
