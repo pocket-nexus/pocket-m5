@@ -10,7 +10,7 @@ if(NOT EXISTS "${worker_root}/include/pocket/worker.h")
     message(FATAL_ERROR "PocketJS worker support is required; set -DPOCKETJS_ROOT=<worker-enabled-checkout>")
 endif()
 idf_component_register(
-    SRCS "src/worker.c" "${worker_root}/src/worker.c" "${worker_root}/src/quickjs.c" "${worker_root}/src/quickjs_ui.c"
+    SRCS "src/worker.c" "${worker_root}/src/worker.c" "${worker_root}/src/quickjs.c" "${worker_root}/src/quickjs_ui.c" "${worker_root}/src/runner.c"
     INCLUDE_DIRS "include" "${worker_root}/include"
     REQUIRES quickjs-ng
     PRIV_REQUIRES esp_timer heap log

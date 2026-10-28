@@ -5,7 +5,7 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "pocket/worker_esp.h"
-#include <stdatomic.h>
+#include "pocket/worker_runner.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -13,9 +13,8 @@ struct pocket_worker_esp {
   pocket_worker_esp_config config;
   SemaphoreHandle_t mutex, done, ready;
   TaskHandle_t task;
-  pocket_worker *core;
+  pocket_worker_runner *runner;
   esp_timer_handle_t timer;
-  atomic_bool stopping, failed, active;
   esp_err_t startup;
   size_t guest_used, guest_peak;
   char console[4][1024];
@@ -114,6 +113,20 @@ static uint64_t now(void *context) {
   (void)context;
   return (uint64_t)esp_timer_get_time();
 }
+/* The runner's idle wait. Notification counts survive the check-to-wait
+ * race; an esp_timer one-shot wakes exact deadlines, so there is no global
+ * worker tick. */
+static void wait_until(void *context, uint64_t deadline) {
+  pocket_worker_esp *host = context;
+  esp_timer_stop(host->timer);
+  if (deadline != UINT64_MAX) {
+    const uint64_t current = now(host);
+    if (deadline <= current)
+      return;
+    esp_timer_start_once(host->timer, deadline - current);
+  }
+  ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+}
 static JSValue console_log(JSContext *context, JSValueConst self, int argc,
                            JSValueConst *argv, int magic, JSValue *data) {
   (void)self;
@@ -139,9 +152,11 @@ static JSValue console_log(JSContext *context, JSValueConst self, int argc,
   }
   return JS_UNDEFINED;
 }
-static void drain_console(pocket_worker_esp *host) {
-  /* Console transmission can block on UART/USB consumers. Drain a bounded
-   * batch after the engine measures the JS turn, never inside guest code. */
+/* Console transmission can block on UART/USB consumers. The runner calls
+ * this after every turn, outside guest code, so the JS turn budget never
+ * pays for it. */
+static void drain_console(void *context) {
+  pocket_worker_esp *host = context;
   for (unsigned i = 0; i < host->console_count; ++i)
     ESP_LOGI("worker", "%s", host->console[i]);
   if (host->console_dropped)
@@ -188,121 +203,86 @@ static void run(void *opaque) {
                                          .arg = host,
                                          .dispatch_method = ESP_TIMER_TASK,
                                          .name = "worker_deadline"};
-  pocket_worker *core = NULL;
-  pocket_worker_quickjs *realm = NULL;
   host->startup = esp_timer_create(&timer, &host->timer);
-  if (host->startup != ESP_OK)
-    goto done;
-  const pocket_worker_config config = {.struct_size = sizeof(config),
-                                       .generation = host->config.generation,
-                                       .nodes = host->config.nodes,
-                                       .node_count = host->config.node_count,
-                                       .context = host,
-                                       .lock = core_lock,
-                                       .unlock = core_unlock,
-                                       .wake = wake,
-                                       .now_micros = now};
-  core = pocket_worker_create(&config);
-  host->core = core;
-  if (!core) {
-    host->startup = ESP_ERR_NO_MEM;
-    goto done;
-  }
-  const pocket_worker_quickjs_config qjs = {
-      .struct_size = sizeof(qjs),
-      .worker = core,
-      .heap_limit = host->config.heap_limit,
-      .stack_limit = host->config.stack_limit,
-      .max_turn_micros = host->config.turn_micros,
-      .max_jobs = 8,
-      .max_facts = 16,
-      .max_bytes = 8192,
-      .window_micros = host->config.window_micros,
-      .quota_micros = host->config.quota_micros,
-      .context = host,
-      .now_micros = now,
-      .mount = mount,
-      .allocator = &allocator,
-      .allocator_context = host};
-  realm = pocket_worker_quickjs_create(&qjs);
-  if (!realm) {
-    host->startup = ESP_ERR_NO_MEM;
-    goto done;
-  }
-  ESP_LOGI("pocket_worker",
-           "before load internal_free=%u largest=%u heap_limit=%u",
-           (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
-           (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
-           (unsigned)host->config.heap_limit);
-  if (pocket_worker_quickjs_eval(realm, host->config.source,
-                                 host->config.source_size,
-                                 "worker.js") != POCKET_WORKER_OK) {
-    ESP_LOGE("pocket_worker", "load: %s", pocket_worker_quickjs_error(realm));
-    host->startup = ESP_FAIL;
-    goto done;
-  }
-  drain_console(host);
-  ESP_LOGI("pocket_worker",
-           "loaded guest_used=%u guest_peak=%u internal_free=%u",
-           (unsigned)host->guest_used, (unsigned)host->guest_peak,
-           (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
-  xSemaphoreGive(host->ready);
-  while (!atomic_load(&host->active) && !atomic_load(&host->stopping))
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-  while (!atomic_load(&host->stopping)) {
-    const pocket_worker_context turn = {.struct_size = sizeof(turn),
-                                        .now_micros = now(host)};
-    const int32_t result = pocket_worker_quickjs_step(realm, &turn);
+  if (host->startup == ESP_OK) {
+    const pocket_worker_runner_config config = {
+        .struct_size = sizeof(config),
+        .core = {.struct_size = sizeof(config.core),
+                 .generation = host->config.generation,
+                 .nodes = host->config.nodes,
+                 .node_count = host->config.node_count,
+                 .context = host,
+                 .lock = core_lock,
+                 .unlock = core_unlock,
+                 .wake = wake,
+                 .now_micros = now},
+        .realm = {.struct_size = sizeof(config.realm),
+                  .heap_limit = host->config.heap_limit,
+                  .stack_limit = host->config.stack_limit,
+                  .max_turn_micros = host->config.turn_micros,
+                  .max_jobs = 8,
+                  .max_facts = 16,
+                  .max_bytes = 8192,
+                  .window_micros = host->config.window_micros,
+                  .quota_micros = host->config.quota_micros,
+                  .context = host,
+                  .now_micros = now,
+                  .mount = mount,
+                  .allocator = &allocator,
+                  .allocator_context = host},
+        .source = host->config.source,
+        .source_size = host->config.source_size,
+        .context = host,
+        .wait = wait_until,
+        .after_turn = drain_console,
+        .start_paused = host->config.defer_turns};
+    ESP_LOGI("pocket_worker",
+             "before load internal_free=%u largest=%u heap_limit=%u",
+             (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+             (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
+             (unsigned)host->config.heap_limit);
+    host->runner = pocket_worker_runner_create(&config);
     drain_console(host);
-    if (result < 0) {
-      ESP_LOGE("pocket_worker", "fault: %s",
-               pocket_worker_quickjs_error(realm));
-      atomic_store(&host->failed, true);
-      break;
+    if (!host->runner) {
+      host->startup = ESP_ERR_NO_MEM;
+    } else if (pocket_worker_runner_failed(host->runner)) {
+      ESP_LOGE("pocket_worker", "load: %s",
+               pocket_worker_runner_error(host->runner));
+      host->startup = ESP_FAIL;
+    } else {
+      ESP_LOGI("pocket_worker",
+               "loaded guest_used=%u guest_peak=%u internal_free=%u",
+               (unsigned)host->guest_used, (unsigned)host->guest_peak,
+               (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
     }
-    if (result > 0)
-      continue;
-    /* Notification counts survive the queue-check/wait race. An esp_timer
-     * one-shot wakes exact deadlines; there is no global worker tick. */
-    const uint64_t deadline = pocket_worker_quickjs_deadline(realm);
-    const uint64_t current = now(host);
-    esp_timer_stop(host->timer);
-    if (deadline != UINT64_MAX && deadline && deadline <= current)
-      continue;
-    if (deadline && deadline != UINT64_MAX)
-      esp_timer_start_once(host->timer, deadline - current);
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
   }
-done:
-  /* A failed realm retains the core until its UI owner detaches all channel
-   * mirrors and calls stop. Native queues remain bounded during this interval.
-   */
-  if (host->startup == ESP_OK && atomic_load(&host->failed)) {
-    while (!atomic_load(&host->stopping))
-      ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+  xSemaphoreGive(host->ready);
+  if (host->startup == ESP_OK) {
+    /* Returns once stop was requested. After a fault the runner keeps the
+     * core until then, so the UI owner detaches its channel mirrors first;
+     * pocket_worker_esp_failed reports the fault meanwhile. */
+    pocket_worker_runner_run(host->runner);
+    if (pocket_worker_runner_failed(host->runner))
+      ESP_LOGE("pocket_worker", "fault: %s",
+               pocket_worker_runner_error(host->runner));
   }
-  if (host->timer) {
-    /* TASK-dispatch callbacks can already be in flight after ordinary stop.
-     * Join them before host/task storage can be released by stop(). */
-    ESP_ERROR_CHECK(esp_timer_stop_blocking(host->timer, portMAX_DELAY));
-  }
-  if (core) {
-    while (pocket_worker_destroy(core) == POCKET_WORKER_BUSY)
-      vTaskDelay(1);
-  }
-  if (realm) {
+  if (host->runner) {
     ESP_LOGI("pocket_worker",
              "stopped guest_used=%u guest_peak=%u stack_min_free=%u",
              (unsigned)host->guest_used, (unsigned)host->guest_peak,
              (unsigned)uxTaskGetStackHighWaterMark(NULL));
-    pocket_worker_quickjs_destroy(realm);
+    /* Destroy retries through wait_until while native IO still holds the
+     * core, so the deadline timer must outlive it. */
+    pocket_worker_runner_destroy(host->runner);
+    host->runner = NULL;
   }
   if (host->timer) {
+    /* TASK-dispatch callbacks can still be in flight. Join them before
+     * stop() can release the host and task storage. */
+    ESP_ERROR_CHECK(esp_timer_stop_blocking(host->timer, portMAX_DELAY));
     esp_timer_delete(host->timer);
     host->timer = NULL;
   }
-  if (host->startup != ESP_OK)
-    atomic_store(&host->failed, true);
   xSemaphoreGive(host->ready);
   xSemaphoreGive(host->done);
   for (;;)
@@ -322,9 +302,6 @@ esp_err_t pocket_worker_esp_start(const pocket_worker_esp_config *config,
   if (!host)
     return ESP_ERR_NO_MEM;
   host->config = *config;
-  atomic_init(&host->stopping, false);
-  atomic_init(&host->failed, false);
-  atomic_init(&host->active, !config->defer_turns);
   host->mutex = xSemaphoreCreateMutex();
   host->ready = xSemaphoreCreateBinary();
   host->done = xSemaphoreCreateBinary();
@@ -353,9 +330,9 @@ esp_err_t pocket_worker_esp_start(const pocket_worker_esp_config *config,
 esp_err_t pocket_worker_esp_stop(pocket_worker_esp *host, uint32_t timeout_ms) {
   if (!host)
     return ESP_ERR_INVALID_ARG;
-  atomic_store(&host->stopping, true);
   /* Do not notify a task which has already deleted itself. */
   if (xSemaphoreTake(host->done, 0) != pdTRUE) {
+    pocket_worker_runner_stop(host->runner);
     wake(host);
     const TickType_t wait =
         timeout_ms == UINT32_MAX ? portMAX_DELAY : pdMS_TO_TICKS(timeout_ms);
@@ -370,16 +347,18 @@ esp_err_t pocket_worker_esp_stop(pocket_worker_esp *host, uint32_t timeout_ms) {
   return ESP_OK;
 }
 bool pocket_worker_esp_failed(pocket_worker_esp *host) {
-  return host && atomic_load(&host->failed);
+  if (!host)
+    return false;
+  return host->startup != ESP_OK ||
+         (host->runner && pocket_worker_runner_failed(host->runner));
 }
 
 pocket_worker *pocket_worker_esp_core(pocket_worker_esp *host) {
-  return host ? host->core : NULL;
+  return host ? pocket_worker_runner_core(host->runner) : NULL;
 }
 
 void pocket_worker_esp_resume(pocket_worker_esp *host) {
   if (!host)
     return;
-  atomic_store(&host->active, true);
-  wake(host);
+  pocket_worker_runner_resume(host->runner);
 }

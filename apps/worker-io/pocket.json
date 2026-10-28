@@ -26,7 +26,9 @@
         640
       ],
       "presentation": "native"
-    },
+    }
+  },
+  "domains": {
     "worker": {
       "entry": "worker.ts",
       "nodes": [

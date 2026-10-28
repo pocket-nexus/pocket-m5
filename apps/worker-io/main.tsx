@@ -2,7 +2,7 @@ import { createMemo, createSignal, For, Match, Switch, type JSX } from "solid-js
 import { mount } from "@pocketjs/framework/solid";
 import { View, Text } from "@pocketjs/framework/components";
 import { onFrame } from "@pocketjs/framework/lifecycle";
-import { io } from "@pocketjs/framework/io";
+import { worker } from "@pocketjs/framework/worker/channels";
 import { decodeState, encodeCommand, StateFlag, RtcSetStatus, validClock, type State } from "./protocol";
 import { accelerationTilt, clockDraft, CLOCK_FIELDS, editField, INITIAL_CLOCK, pad, readDraft, signed, type ClockField } from "./ui-model";
 
@@ -28,7 +28,7 @@ function Label(props: { x: number; y: number; text: string; color?: string }) {
 }
 
 mount(() => {
-  const snapshots = io.channel("state"), commands = io.channel("commands");
+  const snapshots = worker.channel("state"), commands = worker.channel("commands");
   const [tab, setTab] = createSignal(0);
   const [state, setState] = createSignal<State>();
   const [workerStale, setWorkerStale] = createSignal(false);
