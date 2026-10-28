@@ -14,6 +14,12 @@ export interface ByteReader {
   u32(offset: number): number;
   f32(offset: number): number;
 }
+/** A ByteReader over retained bytes; the worker reads channel records with it. */
+export function reader(bytes: Uint8Array): ByteReader {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  return { length: bytes.length, u8: offset => view.getUint8(offset), u16le: offset => view.getUint16(offset, true),
+    u32: offset => view.getUint32(offset, true), f32: offset => view.getFloat32(offset, true) };
+}
 export interface State {
   commandEcho: number; imuSamples: number; rtcTransfers: number; rtcInvalid: number;
   flags: number; accel: [number, number, number]; gyro: [number, number, number];
