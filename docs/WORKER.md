@@ -6,13 +6,12 @@ The `pocket_worker_esp` component owns a second QuickJS runtime on a FreeRTOS ta
 
 ## Source checkout and builds
 
-Worker support requires the corresponding PocketJS worker changes. The pinned `third_party/pocketjs` stays unchanged until those changes land upstream. Use an explicit checkout override during development:
+The worker core, runner and `tools/build-worker.ts` come from PocketJS `engine/worker`, which reached pocketjs `main` through pocket-nexus/pocketjs#623. The pinned `third_party/pocketjs` includes them; `POCKETJS_ROOT` still selects another checkout for local integration builds.
 
 ```sh
 bun install --frozen-lockfile
-export POCKETJS_ROOT=/absolute/path/to/worker-enabled/pocketjs
 . /absolute/path/to/esp-idf/export.sh
-idf.py -C programs/tab5-worker -DPOCKETJS_ROOT="$POCKETJS_ROOT" build
+idf.py -C programs/tab5-worker build
 ```
 
 The runner uses `esp_timer_stop_blocking` and requires ESP-IDF **6.2.x**; the remaining board components accept their declared IDF ranges. Only ESP32-P4 was exercised on hardware. QuickJS-NG is pinned to 0.14.0. The runner builds its QuickJS dependency with `-fno-strict-aliasing`, matching the existing guest component.
@@ -20,14 +19,13 @@ The runner uses `esp_timer_stop_blocking` and requires ESP-IDF **6.2.x**; the re
 To enable workers in the normal launcher, use a fresh build/configuration with both the CMake dependency switch and Kconfig setting:
 
 ```sh
-idf.py -C programs/tab5 -DPOCKETJS_ROOT="$POCKETJS_ROOT" \
-  -DPOCKETJS_ENABLE_WORKER=ON \
+idf.py -C programs/tab5 -DPOCKETJS_ENABLE_WORKER=ON \
   '-DSDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.worker.defaults' build
-POCKETJS_ROOT="$POCKETJS_ROOT" bun tools/app.ts build apps/worker-io/pocket.json \
+bun tools/app.ts build apps/worker-io/pocket.json \
   --runtime-config programs/tab5/worker.runtime-config.ts
 ```
 
-For an existing `sdkconfig`, enable `CONFIG_POCKET_APP_HOST_WORKER=y` with `menuconfig`; defaults do not overwrite an existing value. The default launcher profile omits worker capabilities. The worker-enabled Tab5 composition places the 128 KiB UI owner task stack in PSRAM and keeps its 64 KiB UI QuickJS stack limit. The worker task stack and QuickJS allocations remain in internal RAM. The PSRAM UI owner must not execute cache-disabled flash/NVS or deep-sleep operations; this composition uses SDMMC/FAT storage. The worker defaults select USB Serial/JTAG for console output, avoiding the UART0 console transmission delay inside diagnostic turns. The worker profile has a different profile identity, so its installed apps must be rebuilt with the same runtime config. `tools/app.ts install` accepts the same `--runtime-config` and copies the compiled package into an SD card's inbox. Local override builds can change `programs/tab5/dependencies.lock` to the development checkout; retain that resolved lock with validation output and restore the default dependency lock before committing.
+For an existing `sdkconfig`, enable `CONFIG_POCKET_APP_HOST_WORKER=y` with `menuconfig`; defaults do not overwrite an existing value. The default launcher profile omits worker capabilities. The worker-enabled Tab5 composition places the 128 KiB UI owner task stack in PSRAM and keeps its 64 KiB UI QuickJS stack limit. The worker task stack and QuickJS allocations remain in internal RAM. The PSRAM UI owner must not execute cache-disabled flash/NVS or deep-sleep operations; this composition uses SDMMC/FAT storage. The worker defaults select USB Serial/JTAG for console output, avoiding the UART0 console transmission delay inside diagnostic turns. The worker profile has a different profile identity, so its installed apps must be rebuilt with the same runtime config. `tools/app.ts install` accepts the same `--runtime-config` and copies the compiled package into an SD card's inbox. A `POCKETJS_ROOT` override can change `programs/tab5/dependencies.lock` to that checkout; retain that resolved lock with validation output and restore the default dependency lock before committing.
 
 The host admits the package before worker startup, selects section 8 by exact target, host ABI, and profile hash, bootstraps the worker, and attaches the UI channel bridge before UI evaluation. Worker turns start after UI evaluation returns, so package parsing does not compete with the first worker turn. Native resources and channel queues keep their bounds during this bootstrap interval. A frame copies channel records before `pocket_runtime_tick`; snapshots persist between publications, and rings expose the records received for that frame. App switching detaches the bridge, joins native IO and the worker, then frees the UI realm and package. A worker fault retains the core until the UI owner detaches and stops it. The normal launcher returns to home on a worker fault.
 

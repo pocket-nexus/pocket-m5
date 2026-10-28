@@ -11,8 +11,7 @@ RTC writes occur only after Apply. The driver preserves unrelated control bits, 
 Build with the worker-enabled Tab5 profile:
 
 ```sh
-POCKETJS_ROOT=/absolute/path/to/worker-enabled/pocketjs \
-  bun tools/app.ts build apps/worker-io/pocket.json \
+bun tools/app.ts build apps/worker-io/pocket.json \
   --runtime-config programs/tab5/worker.runtime-config.ts
 ```
 

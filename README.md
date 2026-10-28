@@ -71,8 +71,9 @@ the home screen. Swipe up from the bottom edge to return home. See
 `third_party/pocketjs` is pinned to a commit on pocketjs `main` and tracks
 that branch. `main` carries the platform, engine and framework changes of
 pocket-nexus/pocketjs#616 that `programs/m5stack-tab5` needs, merged through
-pocket-nexus/pocketjs#617. The driver contracts and directory layout come from
-pocket-nexus/pocketjs#603.
+pocket-nexus/pocketjs#617, and the worker runtime in `engine/worker` that
+`pocket_worker_esp` builds, merged through pocket-nexus/pocketjs#623. The
+driver contracts and directory layout come from pocket-nexus/pocketjs#603.
 
 ## License
 

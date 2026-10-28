@@ -4,8 +4,7 @@ This firmware runs two 15-second worker generations beside a separate QuickJS UI
 
 ```sh
 . /absolute/path/to/esp-idf/export.sh
-idf.py -C programs/tab5-worker \
-  -DPOCKETJS_ROOT=/absolute/path/to/worker-enabled/pocketjs build
+idf.py -C programs/tab5-worker build
 idf.py -C programs/tab5-worker -p /dev/cu.usbmodemDEVICE -b 1500000 flash monitor
 ```
 
