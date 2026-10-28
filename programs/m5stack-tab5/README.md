@@ -21,10 +21,12 @@ pocket-nexus/pocketjs#617.
 The home variant is a launcher console (`TAB5_LAUNCHER`): `components/pocket_system`
 keeps a store of installed apps on the microSD card (SDSPI; the `storage`
 flash partition without a card), the Pocket Link to a paired companion,
-`net.http` over the link, each app's `data.fs` tree and the Wi-Fi radio on
-the ESP32-C6 (esp_hosted). The program embeds Pocket Home, compiled in
-pocket-shell against `home.runtime-config.ts`, as the launcher and boots one
-runtime per app; SELECT from the home control returns to the launcher. The
+each app's `data.fs` tree and the Wi-Fi radio on the ESP32-C6 (esp_hosted).
+A guest has no network module: no UI realm has one upstream, and this
+program runs no worker domain to serve `io.http`. The program embeds Pocket
+Home, compiled in pocket-shell against `home.runtime-config.ts`, as the
+launcher and boots one runtime per app; SELECT from the home control returns
+to the launcher. The
 primary surface of the profile is laid out into a PSRAM buffer that nothing
 scans out. `pocket_idf_package_open` (the IDF archive) admits a stored package
 for the profile before the runtime boots it. `components/pocket_camera` serves

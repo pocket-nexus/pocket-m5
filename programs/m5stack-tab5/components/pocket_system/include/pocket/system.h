@@ -2,10 +2,10 @@
 
 /*
  * The system services of the Tab5 as a launcher console: installed apps and
- * switching between them, the Pocket Link to a paired companion, net.http
- * over the link, a guest's data.fs tree and the Wi-Fi radio. The state
- * machines are engine/host-services; this component keeps the store, the
- * radio and the QuickJS bindings.
+ * switching between them, the Pocket Link to a paired companion, a guest's
+ * data.fs tree and the Wi-Fi radio. The state machines are
+ * engine/host-services; this component keeps the store, the radio and the
+ * QuickJS bindings.
  *
  * The store lives under one mounted directory (`root`):
  *
