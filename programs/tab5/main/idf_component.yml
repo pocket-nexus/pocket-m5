@@ -3,4 +3,4 @@ dependencies:
   # The pinned submodule provides the PocketJS runtime; its components name
   # this dependency in their own manifests.
   pocket-nexus/pocket_runtime:
-    override_path: ../../../third_party/pocketjs/platforms/esp-idf/pocket_runtime
+    override_path: ${POCKETJS_ROOT}/platforms/esp-idf/pocket_runtime

@@ -166,8 +166,9 @@ static int32_t acquire(void *context, const pocket_rect *region,
   return POCKET_STATUS_OK;
 }
 
-/* The draw buffer lies inside a frame buffer, so esp_lcd writes back the
- * cached rows and selects that buffer for the next DMA restart. */
+/* A renderer may repaint any pixel of the acquired region, including gaps
+ * between damage rectangles. Publish every acquired row so CPU writes after
+ * PPA fills reach memory before scanout, then select the next frame buffer. */
 static int32_t flush(void *context, const pocket_rect *regions, size_t count,
                      uint64_t *token) {
   pocket_display_esp_dpi_flip *d = context;
@@ -177,38 +178,29 @@ static int32_t flush(void *context, const pocket_rect *regions, size_t count,
   const pocket_rect *r = regions;
   for (size_t i = 0; i < count; i++) {
     if (r->struct_size < sizeof(*r) || r->struct_size % _Alignof(pocket_rect) ||
-        !r->width || !r->height || r->x > d->config.width - r->width ||
-        r->y < d->region.y || r->height > d->region.height ||
+        !r->width || !r->height || r->width > d->config.width ||
+        r->x > d->config.width - r->width || r->y < d->region.y ||
+        r->height > d->region.height ||
         r->y - d->region.y > d->region.height - r->height)
       return POCKET_STATUS_INVALID;
     r = (const pocket_rect *)((const uint8_t *)r + r->struct_size);
   }
   uint8_t *base = d->buffers[d->active];
-  bool selected = false;
-  int32_t status = POCKET_STATUS_OK;
-  r = regions;
-  for (size_t i = 0; i < count; i++) {
-    uint8_t *pixels = base + (size_t)r->y * d->stride + (size_t)r->x * 2;
-    if (esp_lcd_panel_draw_bitmap(d->config.panel, (int)r->x, (int)r->y,
-                                  (int)(r->x + r->width),
-                                  (int)(r->y + r->height), pixels) != ESP_OK) {
-      status = POCKET_STATUS_FAILED;
-      break;
-    }
-    selected = true;
-    r = (const pocket_rect *)((const uint8_t *)r + r->struct_size);
-  }
-  if (selected) {
+  uint8_t *pixels = base + (size_t)d->region.y * d->stride;
+  const esp_err_t result = esp_lcd_panel_draw_bitmap(
+      d->config.panel, 0, (int)d->region.y, (int)d->region.width,
+      (int)(d->region.y + d->region.height), pixels);
+  if (result == ESP_OK) {
     /* Read after the index switch: a later interrupt restarted with it. */
     d->flip_mark = atomic_load_explicit(&d->frames, memory_order_acquire);
     d->front = d->active;
     d->flip_pending = true;
   }
   d->active = UINT32_MAX;
-  if (status != POCKET_STATUS_OK) {
-    /* Rows after the failed region kept stale cache lines; repaint both. */
+  if (result != ESP_OK) {
+    /* The failed publication may leave stale cache lines; repaint both. */
     pocket_display_esp_dpi_flip_invalidate(d);
-    return status;
+    return POCKET_STATUS_FAILED;
   }
   *token = d->pending_token = ++d->next_token;
   return POCKET_STATUS_OK;

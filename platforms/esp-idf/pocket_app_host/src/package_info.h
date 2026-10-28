@@ -16,6 +16,8 @@ typedef struct {
 typedef struct {
   const uint8_t *profile_hash; /* 32 bytes */
   uint32_t host_abi;
+  const uint8_t *target;
+  size_t target_length;
 } package_profile;
 
 /* Each reader returns NULL on success or a static diagnostic. */
@@ -27,3 +29,9 @@ const char *package_identity_memory(const uint8_t *data, size_t size,
                                     package_identity *out);
 /* FNV-1a64 over every byte before the 8-byte footer. */
 const char *package_verify_file(FILE *file, uint64_t size);
+/* After full runtime admission, locate the optional NUL-terminated worker
+ * source in the same target/ABI/profile variant. No source leaves package
+ * storage. */
+const char *package_worker_memory(const uint8_t *data, size_t size,
+                                  const package_profile *profile,
+                                  const char **source, size_t *source_size);

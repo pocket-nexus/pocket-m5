@@ -1,5 +1,15 @@
 menu "PocketJS Tab5 firmware"
 
+    config TAB5_UI_VALIDATION
+        bool "Enable USB JTAG UI capture and synthetic taps"
+        default n
+        help
+            Program-layer validation hooks expose a bounded debugger mailbox,
+            preserve a 720x1280 RGB565 frame in 1.76 MiB PSRAM, and inject
+            contacts through the normal runtime input path. Use the
+            tools/tab5-ui-validation.py tool with USB JTAG. Disable for the
+            firmware left on a user's device after validation.
+
     config TAB5_RENDERER_PPA
         bool "Render through the ESP32-P4 PPA"
         default y

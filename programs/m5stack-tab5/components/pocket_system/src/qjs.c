@@ -3,7 +3,6 @@
  * product publishes (products/3ds/src/qjs.c):
  *
  *   globalThis.link    contracts/spec/link.ts (link.c)
- *   globalThis.net     contracts/spec/net.ts over the link
  *   globalThis.wifi    contracts/spec/wifi.ts (wifi.c)
  *   globalThis.fs      contracts/spec/fs.ts, when the guest's plan declares
  *                      data.fs (fs.c)
@@ -30,11 +29,6 @@ enum {
   OP_LINK_INSTALL,
   OP_LINK_REMOVE,
   OP_LINK_POLL,
-  OP_NET_START,
-  OP_NET_TAKE,
-  OP_NET_CANCEL,
-  OP_NET_POLL,
-  OP_NET_LAST_ERROR,
   OP_WIFI_STATUS,
   OP_WIFI_SET_ENABLED,
   OP_WIFI_CONNECT,
@@ -82,40 +76,6 @@ static void free_text(JSContext *ctx, const char *text) {
     JS_FreeCString(ctx, text);
 }
 
-/* An ArrayBuffer or a view of one, borrowed until JS runs again. */
-static bool argument_bytes(JSContext *ctx, int argc, JSValueConst *argv,
-                           int index, uint8_t **bytes, size_t *length) {
-  if (index >= argc)
-    return false;
-  size_t direct_length = 0;
-  uint8_t *direct = JS_GetArrayBuffer(ctx, &direct_length, argv[index]);
-  if (direct != NULL) {
-    *bytes = direct;
-    *length = direct_length;
-    return true;
-  }
-  JS_FreeValue(ctx, JS_GetException(ctx));
-  size_t offset = 0;
-  size_t view_length = 0;
-  size_t element = 0;
-  JSValue buffer =
-      JS_GetTypedArrayBuffer(ctx, argv[index], &offset, &view_length, &element);
-  if (JS_IsException(buffer)) {
-    JS_FreeValue(ctx, JS_GetException(ctx));
-    return false;
-  }
-  size_t base_length = 0;
-  uint8_t *base = JS_GetArrayBuffer(ctx, &base_length, buffer);
-  JS_FreeValue(ctx, buffer);
-  if (base == NULL || offset + view_length > base_length) {
-    JS_FreeValue(ctx, JS_GetException(ctx));
-    return false;
-  }
-  *bytes = base + offset;
-  *length = view_length;
-  return true;
-}
-
 /* One call's arguments and result. The C call runs on the system task
  * (system_run): storage and NVS are flash, which a PSRAM stack cannot touch. */
 typedef enum {
@@ -132,8 +92,6 @@ typedef struct {
   size_t length;
   const char *second;
   size_t second_length;
-  uint8_t *bytes;
-  size_t byte_length;
   int32_t number;
   double first_float;
   double second_float;
@@ -187,26 +145,6 @@ static void perform(void *argument) {
   case OP_LINK_POLL:
     r->kind = RESULT_TEXT_OR_UNDEFINED;
     r->out_text = link_poll();
-    break;
-  case OP_NET_START:
-    int_result(r, r->text == NULL ? -1
-                                  : link_net_start(r->text, r->length, r->bytes,
-                                                   r->byte_length));
-    break;
-  case OP_NET_TAKE:
-    int_result(r, r->bytes == NULL
-                      ? -1
-                      : link_net_take(r->number, r->bytes, r->byte_length));
-    break;
-  case OP_NET_CANCEL:
-    link_net_cancel(r->number);
-    break;
-  case OP_NET_POLL:
-    r->kind = RESULT_TEXT_OR_UNDEFINED;
-    r->out_text = link_net_poll();
-    break;
-  case OP_NET_LAST_ERROR:
-    text_result(r, link_net_last_error());
     break;
   case OP_WIFI_STATUS:
     text_result(r, wifi_status_json());
@@ -275,23 +213,6 @@ static JSValue operation(JSContext *ctx, JSValueConst this_value, int argc,
   case OP_FS_MKDIR:
     request.text = argument_text(ctx, argc, argv, 0, &request.length);
     break;
-  case OP_NET_START:
-    request.text = argument_text(ctx, argc, argv, 0, &request.length);
-    /* Borrowed after the string conversion and used before JS runs again:
-     * start() copies the body. */
-    if (!argument_bytes(ctx, argc, argv, 1, &request.bytes,
-                        &request.byte_length)) {
-      request.bytes = NULL;
-      request.byte_length = 0;
-    }
-    break;
-  case OP_NET_TAKE:
-    request.number = argument_int(ctx, argc, argv, 0);
-    if (!argument_bytes(ctx, argc, argv, 1, &request.bytes,
-                        &request.byte_length))
-      request.bytes = NULL;
-    break;
-  case OP_NET_CANCEL:
   case OP_WIFI_CONNECT:
   case OP_WIFI_FORGET:
     request.number = argument_int(ctx, argc, argv, 0);
@@ -359,14 +280,6 @@ esp_err_t system_qjs_install(JSContext *ctx) {
   add(ctx, link, "remove", 1, OP_LINK_REMOVE);
   add(ctx, link, "poll", 0, OP_LINK_POLL);
   JS_SetPropertyStr(ctx, global, "link", link);
-
-  JSValue net = JS_NewObject(ctx);
-  add(ctx, net, "start", 2, OP_NET_START);
-  add(ctx, net, "take", 2, OP_NET_TAKE);
-  add(ctx, net, "cancel", 1, OP_NET_CANCEL);
-  add(ctx, net, "poll", 0, OP_NET_POLL);
-  add(ctx, net, "lastError", 0, OP_NET_LAST_ERROR);
-  JS_SetPropertyStr(ctx, global, "net", net);
 
   JSValue wifi = JS_NewObject(ctx);
   add(ctx, wifi, "status", 0, OP_WIFI_STATUS);

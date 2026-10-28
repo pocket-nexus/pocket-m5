@@ -12,8 +12,9 @@ buffer that is not in scanout; flush hands that buffer to scanout.
 - `acquire` returns the full-width back buffer region. If the previous flush
   has not reached scanout yet, it waits for the DPI frame-complete interrupt,
   bounded by `flip_timeout_ms`; a timeout returns `POCKET_STATUS_FAILED`.
-- `flush` calls `esp_lcd_panel_draw_bitmap` once per damage region with a
-  pointer inside the frame buffer. esp_lcd writes back the cached rows and
+- `flush` calls `esp_lcd_panel_draw_bitmap` once for the acquired full-width
+  region with a pointer inside the frame buffer. The renderer may repaint
+  rows between damage rectangles; esp_lcd writes back all acquired rows and
   selects that buffer for the next DMA restart. No pixels are copied.
 - `wait` returns after flush's cache write-back. Scanout keeps reading the
   flushed buffer until a later flip; no writer touches it before the next

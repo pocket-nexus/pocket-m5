@@ -1,8 +1,8 @@
 # pocket_system
 
 The system services of the Tab5 as a launcher console: installed apps and
-switching between them, the Pocket Link to a paired companion, `net.http`
-through the companion, a guest's `data.fs` tree and the Wi-Fi radio.
+switching between them, the Pocket Link to a paired companion, a guest's
+`data.fs` tree and the Wi-Fi radio.
 
 - Public header: `pocket/system.h`
 - Shared state machines: `engine/host-services` (`link.c`, `launcher.c`,
@@ -45,7 +45,6 @@ and boots it.
 | --- | --- |
 | `ui.appTable`, `ui.appLaunch`, `ui.appShot` | the `applications` operations, served by the program's operation provider from `pocketjs_system_app_table` and `pocketjs_system_launch` |
 | `link` | `contracts/spec/link.ts` |
-| `net` | `contracts/spec/net.ts` over the link |
 | `wifi` | `contracts/spec/wifi.ts`, with `scan`, `join` and `forget` |
 | `fs` | `contracts/spec/fs.ts`, when the plan's features hold `data.fs` |
 

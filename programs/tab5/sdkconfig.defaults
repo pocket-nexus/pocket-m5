@@ -12,7 +12,7 @@ CONFIG_COMPILER_OPTIMIZATION_PERF=y
 CONFIG_FREERTOS_HZ=1000
 CONFIG_ESP_MAIN_TASK_STACK_SIZE=16384
 
-# 32 MiB PSRAM holds the frame buffers, packages and both heaps.
+# 32 MiB PSRAM holds the frame buffers, packages and UI/runtime heaps. Worker QuickJS uses internal RAM.
 CONFIG_SPIRAM=y
 CONFIG_IDF_EXPERIMENTAL_FEATURES=y
 CONFIG_SPIRAM_SPEED_200M=y
