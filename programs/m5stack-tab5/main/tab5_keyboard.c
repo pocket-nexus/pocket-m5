@@ -7,6 +7,8 @@
 #include "tab5_keyboard.h"
 
 #include <ctype.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <string.h>
 
 #include "driver/i2c_master.h"
@@ -35,10 +37,16 @@
 
 /* Presses taken per poll; the rest wait for the next frame. */
 #define KEYBOARD_EVENTS_PER_POLL 8
+/* Polls between probes while no keyboard answers (two seconds at 30 Hz). */
+#define KEYBOARD_PROBE_POLLS 60
+/* Polls a keyboard may fail to answer before the host lets it go. */
+#define KEYBOARD_LOST_POLLS 3
 
 static const char *TAG = "pocketjs_keyboard";
 static i2c_master_bus_handle_t bus;
 static i2c_master_dev_handle_t device;
+static uint32_t polls_since_probe;
+static uint32_t unanswered_polls;
 
 static bool read_registers(uint8_t reg, uint8_t *out, size_t count) {
   return i2c_master_transmit_receive(device, &reg, 1, out, count,
@@ -51,7 +59,41 @@ static bool write_register(uint8_t reg, uint8_t value) {
                              KEYBOARD_TIMEOUT_MS) == ESP_OK;
 }
 
-bool tab5_keyboard_start(void) {
+static void detach(void) {
+  if (device)
+    i2c_master_bus_rm_device(device);
+  device = NULL;
+  polls_since_probe = 0;
+}
+
+/* Bring a keyboard that answers on the bus into character mode. */
+static bool attach(void) {
+  if (i2c_master_probe(bus, KEYBOARD_ADDRESS, KEYBOARD_TIMEOUT_MS) != ESP_OK)
+    return false;
+  const i2c_device_config_t device_config = {
+      .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+      .device_address = KEYBOARD_ADDRESS,
+      .scl_speed_hz = KEYBOARD_HZ,
+  };
+  if (i2c_master_bus_add_device(bus, &device_config, &device) != ESP_OK) {
+    device = NULL;
+    return false;
+  }
+  uint8_t version = 0;
+  if (!read_registers(REG_VERSION, &version, 1) ||
+      !write_register(REG_MODE, MODE_CHARACTER)) {
+    ESP_LOGW(TAG, "keyboard at 0x%02x does not answer", KEYBOARD_ADDRESS);
+    detach();
+    return false;
+  }
+  /* Presses made before the mode took effect carry the old format. */
+  write_register(REG_EVENT_COUNT, 0);
+  unanswered_polls = 0;
+  ESP_LOGI(TAG, "keyboard firmware %u, character mode", (unsigned)version);
+  return true;
+}
+
+void tab5_keyboard_start(void) {
   const i2c_master_bus_config_t bus_config = {
       .clk_source = I2C_CLK_SRC_DEFAULT,
       .i2c_port = KEYBOARD_PORT,
@@ -62,38 +104,11 @@ bool tab5_keyboard_start(void) {
   };
   if (i2c_new_master_bus(&bus_config, &bus) != ESP_OK) {
     ESP_LOGW(TAG, "no I2C bus on GPIO %d/%d", KEYBOARD_SDA, KEYBOARD_SCL);
-    return false;
-  }
-  if (i2c_master_probe(bus, KEYBOARD_ADDRESS, KEYBOARD_TIMEOUT_MS) != ESP_OK) {
-    ESP_LOGI(TAG, "no keyboard at 0x%02x", KEYBOARD_ADDRESS);
-    i2c_del_master_bus(bus);
     bus = NULL;
-    return false;
+    return;
   }
-  const i2c_device_config_t device_config = {
-      .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-      .device_address = KEYBOARD_ADDRESS,
-      .scl_speed_hz = KEYBOARD_HZ,
-  };
-  if (i2c_master_bus_add_device(bus, &device_config, &device) != ESP_OK) {
-    i2c_del_master_bus(bus);
-    bus = NULL;
-    return false;
-  }
-  uint8_t version = 0;
-  if (!read_registers(REG_VERSION, &version, 1) ||
-      !write_register(REG_MODE, MODE_CHARACTER)) {
-    ESP_LOGW(TAG, "keyboard at 0x%02x does not answer", KEYBOARD_ADDRESS);
-    i2c_master_bus_rm_device(device);
-    i2c_del_master_bus(bus);
-    device = NULL;
-    bus = NULL;
-    return false;
-  }
-  /* Presses made before the mode took effect carry the old format. */
-  write_register(REG_EVENT_COUNT, 0);
-  ESP_LOGI(TAG, "keyboard firmware %u, character mode", (unsigned)version);
-  return true;
+  if (!attach())
+    ESP_LOGI(TAG, "no keyboard at 0x%02x, probing for one", KEYBOARD_ADDRESS);
 }
 
 /* The KeyboardEvent.key name of a key the keyboard names, NULL for a key
@@ -149,11 +164,25 @@ static void key_pair(pocket_text_event *events, size_t *count, const char *text,
 
 size_t tab5_keyboard_poll(pocket_text_event *events, size_t capacity,
                           char *storage, size_t storage_size) {
-  if (!device || capacity < 2)
+  if (!device) {
+    if (bus && ++polls_since_probe >= KEYBOARD_PROBE_POLLS) {
+      polls_since_probe = 0;
+      attach();
+    }
+    return 0;
+  }
+  if (capacity < 2)
     return 0;
   uint8_t pending = 0;
-  if (!read_registers(REG_EVENT_COUNT, &pending, 1))
+  if (!read_registers(REG_EVENT_COUNT, &pending, 1)) {
+    if (++unanswered_polls >= KEYBOARD_LOST_POLLS) {
+      ESP_LOGI(TAG, "keyboard at 0x%02x stopped answering, probing for one",
+               KEYBOARD_ADDRESS);
+      detach();
+    }
     return 0;
+  }
+  unanswered_polls = 0;
   size_t count = 0;
   size_t used = 0;
   for (unsigned taken = 0;

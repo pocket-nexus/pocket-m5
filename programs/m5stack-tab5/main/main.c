@@ -150,8 +150,6 @@ typedef struct {
   float ball_last_x, ball_last_y;
   uint32_t ball_frames;
   uint8_t ball_mode;
-  /* The keyboard on Ext.Port1, when one answered at boot. */
-  bool keyboard;
   uint32_t contacts[TAB5_MAX_CONTACTS];
   uint32_t contact_count;
   tab5_guest_t running;
@@ -259,11 +257,13 @@ static void show_ball(tab5_host_t *host) {
 
 /* ---- input --------------------------------------------------------------- */
 
+/* The TEXT class holds without a keyboard: the Home profile asks for
+ * input.text, and the keyboard's presses arrive while one is attached. */
 static uint32_t input_classes(void *context) {
-  const tab5_host_t *host = context;
+  (void)context;
   return POCKET_INPUT_CLASS_CONTACT |
          (TAB5_LAUNCHER ? POCKET_INPUT_CLASS_BUTTONS : 0U) |
-         (host && host->keyboard ? POCKET_INPUT_CLASS_TEXT : 0U);
+         POCKET_INPUT_CLASS_TEXT;
 }
 
 /* Where the ball may sit: inside the picture. */
@@ -403,9 +403,7 @@ static int32_t input_poll(void *context, pocket_input_frame_builder *builder) {
   pocket_text_event text[TAB5_TEXT_EVENTS];
   char text_bytes[TAB5_TEXT_BYTES];
   const size_t text_count =
-      host->keyboard ? tab5_keyboard_poll(text, TAB5_TEXT_EVENTS, text_bytes,
-                                          sizeof text_bytes)
-                     : 0;
+      tab5_keyboard_poll(text, TAB5_TEXT_EVENTS, text_bytes, sizeof text_bytes);
   const pocket_input_frame frame = {.struct_size = sizeof(frame),
                                     .buttons = buttons,
                                     .contacts = contact_count ? contacts : NULL,
@@ -576,7 +574,7 @@ static void start_panel(tab5_host_t *host) {
   ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(lcd.panel, true));
   ESP_ERROR_CHECK(bsp_display_backlight_on());
   ESP_ERROR_CHECK(bsp_touch_new(NULL, &host->touch));
-  host->keyboard = tab5_keyboard_start();
+  tab5_keyboard_start();
   host->ball_contact = -1;
 }
 
