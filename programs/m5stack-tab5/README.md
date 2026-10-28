@@ -87,4 +87,5 @@ every five seconds.
 Pocket Home and the applets compile in pocket-shell against this program's
 `home.runtime-config.ts`; the profile hash depends on the profile's content,
 so a package built against an identical `tab5-home` profile in another
-checkout installs here.
+checkout installs here. The profile declares no `net.http`: an app that
+requires it does not compile for `tab5-home` (`capability.unavailable`).

@@ -30,7 +30,6 @@ export default defineProfile({
     "input.touch.auxiliary",
     "display.auxiliary",
     "text.glyphs.baked",
-    "net.http",
     "link.companion",
     "system.wifi",
     "camera.qr",
