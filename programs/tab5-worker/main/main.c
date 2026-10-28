@@ -76,9 +76,6 @@ void app_main(void) {
         .heap_limit = 384 * 1024,
         .stack_limit = 16 * 1024,
         .task_stack_size = 24 * 1024,
-        .turn_micros = 10000,
-        .window_micros = 100000,
-        .quota_micros = 50000,
         .task_core = 1,
         .task_priority = 3};
     pocket_worker_esp *worker = NULL;

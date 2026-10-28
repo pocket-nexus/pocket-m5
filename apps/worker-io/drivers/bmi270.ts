@@ -1,8 +1,10 @@
-import { io, type I2CDevice } from "@pocketjs/framework/io";
+import { io, ResourceError, ResourceStatus, type I2CDevice, type Timer } from "@pocketjs/framework/io";
 import { read, write, bytes, type I2CStep } from "@pocketjs/framework/io/i2c";
-import type { Inbox, TurnContext } from "@pocketjs/framework/worker";
+import { nowMicros, sleep } from "@pocketjs/framework/worker";
 import { bmi270Configuration } from "./bmi270-config";
 import { decodeBmi270, type ImuSample } from "./decode";
+
+const SAMPLE_MICROS = 10_000;
 
 export class Bmi270 {
   readonly device: I2CDevice;
@@ -10,71 +12,73 @@ export class Bmi270 {
   state: "initializing" | "ready" | "fault" | "closed" = "initializing";
   error: string | undefined;
   samples = 0;
-  private stage = 0;
-  private offset = 0;
-  private uploadAddress = true;
-  private pending = -1;
-  private due = 0;
-  constructor(node: string, private readonly timerId = 2) {
+  private closing = false;
+  private ticks: Timer | undefined;
+  constructor(node: string) {
     this.device = io.i2c(node).open({ address: 0x68, timeoutMillis: 20 });
+    void this.run();
   }
-  private fail(message: string): void { this.state = "fault"; this.error = message; io.timer(this.timerId, 0); }
-  turn(context: TurnContext, inbox: Inbox): void {
-    if (this.state === "fault" || this.state === "closed") return;
-    if (this.pending >= 0) {
-      const result = inbox.completion(this.pending);
-      if (!result) return;
-      this.pending = -1;
-      if (result.status !== 0) { this.fail(`I2C stage ${this.stage}: ${result.status}`); return; }
-      const raw = result.take()!;
-      if (this.stage === 0 && (raw.length !== 1 || raw[0] !== 0x24)) {
-        this.fail("Unexpected BMI270 CHIP_ID"); return;
-      }
-      if (this.stage === 6 && (raw.length !== 1 || (raw[0]! & 15) !== 1)) {
-        this.fail("BMI270 configuration did not initialize"); return;
-      }
-      if (this.stage === 9) {
-        if (raw.length !== 4 || raw[0] !== 0xa8 || raw[1] !== 1 || raw[2] !== 0xa8 || raw[3] !== 1) {
-          this.fail("BMI270 configuration readback mismatch"); return;
-        }
-        this.state = "ready";
-      }
-      if (this.stage === 10) {
-        const sample = decodeBmi270(raw);
-        if (sample) { this.latest = { ...sample, observedAtMicros: context.nowMicros, configuration: 1 }; ++this.samples; }
-        this.due = context.nowMicros + 10_000;
-      } else if (this.stage === 4 && this.uploadAddress) {
-        this.uploadAddress = false;
-      } else if (this.stage === 4 && (this.offset += 128) < bmi270Configuration.length) {
-        this.uploadAddress = true;
-      } else {
-        ++this.stage;
-        if (this.stage === 2) this.due = context.nowMicros + 2000;
-        if (this.stage === 3) this.due = context.nowMicros + 1000;
-        if (this.stage === 6) this.due = context.nowMicros + 150_000;
-        if (this.stage === 9) this.due = context.nowMicros + 80_000;
-      }
-      if (this.due > context.nowMicros) io.timer(this.timerId, this.due);
-    }
-    if (context.nowMicros < this.due) return;
-    let script: readonly I2CStep[];
-    switch (this.stage) {
-      case 0: script = [read(0x00, [bytes(1)])]; break;
-      case 1: script = [write(0x7e, 0xb6)]; break;
-      case 2: script = [write(0x7c, 0)]; break;
-      case 3: script = [write(0x59, 0)]; break;
-      case 4: script = this.uploadAddress
-        ? [write(0x5b, (this.offset >> 1) & 15, this.offset >> 5)]
-        : [write(0x5e, ...bmi270Configuration.subarray(this.offset, this.offset + 128))]; break;
-      case 5: script = [write(0x59, 1)]; break;
-      case 6: script = [read(0x21, [bytes(1)])]; break;
-      case 7: script = [write(0x40, 0xa8, 1, 0xa8, 1)]; break;
-      case 8: script = [write(0x7d, 0x0e)]; break;
-      case 9: script = [read(0x40, [bytes(4)])]; break;
-      default: script = [read(0x03, [bytes(24)])];
-    }
-    this.pending = this.device.submit(script);
-    if (this.pending < 0) io.timer(this.timerId, context.nowMicros + 1000);
+  close(): void {
+    if (this.closing) return;
+    this.closing = true;
+    this.ticks?.close();
   }
-  close(): void { this.state = "closed"; io.timer(this.timerId, 0); this.device.close(); }
+  private async run(): Promise<void> {
+    await sleep(0);
+    try {
+      await this.initialize();
+      this.state = "ready";
+      await this.sample();
+    } catch (error) {
+      if (!this.closing) { this.state = "fault"; this.error = error instanceof Error ? error.message : String(error); }
+    }
+    this.device.close();
+    if (this.state !== "fault") this.state = "closed";
+  }
+  /** Retries a full request queue after 1 ms; any other outcome is a fault. */
+  private async transfer(script: readonly I2CStep[]): Promise<Uint8Array> {
+    for (;;) {
+      if (this.closing) throw new Error("BMI270 closed");
+      try { return await this.device.run(script); }
+      catch (error) {
+        if (error instanceof ResourceError && error.request < 0 && error.status === ResourceStatus.busy) { await sleep(1000); continue; }
+        throw error;
+      }
+    }
+  }
+  /** Bosch BMI270 datasheet §4.2: reset, upload the feature image, confirm
+   *  initialization, then configure 100 Hz at ±4 g and ±1000 °/s. */
+  private async initialize(): Promise<void> {
+    const [chip] = await this.transfer([read(0x00, [bytes(1)])]);
+    if (chip !== 0x24) throw new Error("Unexpected BMI270 CHIP_ID");
+    await this.transfer([write(0x7e, 0xb6)]);
+    await sleep(2000);
+    await this.transfer([write(0x7c, 0)]);
+    await sleep(1000);
+    await this.transfer([write(0x59, 0)]);
+    for (let offset = 0; offset < bmi270Configuration.length; offset += 128) {
+      await this.transfer([write(0x5b, (offset >> 1) & 15, offset >> 5)]);
+      await this.transfer([write(0x5e, ...bmi270Configuration.subarray(offset, offset + 128))]);
+    }
+    await this.transfer([write(0x59, 1)]);
+    await sleep(150_000);
+    const [status] = await this.transfer([read(0x21, [bytes(1)])]);
+    if ((status! & 15) !== 1) throw new Error("BMI270 configuration did not initialize");
+    await this.transfer([write(0x40, 0xa8, 1, 0xa8, 1)]);
+    await this.transfer([write(0x7d, 0x0e)]);
+    await sleep(80_000);
+    const readback = await this.transfer([read(0x40, [bytes(4)])]);
+    if (readback.length !== 4 || readback[0] !== 0xa8 || readback[1] !== 1 || readback[2] !== 0xa8 || readback[3] !== 1) {
+      throw new Error("BMI270 configuration readback mismatch");
+    }
+  }
+  /** One contiguous read per 10 ms tick; a read without both data-ready
+   *  flags yields no sample. */
+  private async sample(): Promise<void> {
+    this.ticks = io.timer(SAMPLE_MICROS);
+    for await (const _ of this.ticks) {
+      const sample = decodeBmi270(await this.transfer([read(0x03, [bytes(24)])]));
+      if (sample) { this.latest = { ...sample, observedAtMicros: nowMicros()!, configuration: 1 }; ++this.samples; }
+    }
+  }
 }
