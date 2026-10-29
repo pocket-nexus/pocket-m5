@@ -25,7 +25,8 @@ pocket-m5/
 │     └─ apps/                  Tab5 manifests of pocketjs apps/hero and apps/clear
 ├─ apps/
 │  ├─ home/                     launcher embedded in the firmware
-│  └─ hello/                    installable sample
+│  ├─ hello/                    installable sample
+│  └─ worker-http/              worker HTTP check for programs/m5stack-tab5
 ├─ tools/                       pocket CLI wrapper, app packaging, formatter
 └─ docs/                        board and app-host reference
 ```
