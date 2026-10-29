@@ -1,12 +1,13 @@
 # engine/host-services holds the link, launcher and data.fs state machines
-# every native program compiles; this component adds the store, the radio
-# and the QuickJS bindings.
+# every native program compiles; this component adds the store, the radio,
+# the SNTP clock and the QuickJS bindings.
 set(shared "${CMAKE_CURRENT_LIST_DIR}/../../../../third_party/pocketjs/engine/host-services")
 
 idf_component_register(
     SRCS
         "src/services_host.c"
         "src/wifi.c"
+        "src/clock.c"
         "src/qjs.c"
         "${shared}/fs.c"
         "${shared}/jscan.c"

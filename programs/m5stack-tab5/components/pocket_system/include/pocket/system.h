@@ -3,9 +3,9 @@
 /*
  * The system services of the Tab5 as a launcher console: installed apps and
  * switching between them, the Pocket Link to a paired companion, a guest's
- * data.fs tree and the Wi-Fi radio. The state machines are
- * engine/host-services; this component keeps the store, the radio and the
- * QuickJS bindings.
+ * data.fs tree, the Wi-Fi radio and the SNTP clock. The state machines are
+ * engine/host-services; this component keeps the store, the radio, the clock
+ * and the QuickJS bindings.
  *
  * The store lives under one mounted directory (`root`):
  *
@@ -48,8 +48,8 @@ typedef struct {
   /** The console's name and model in the link handshake. */
   const char *device_name;
   const char *device_model;
-  /** Bring the Wi-Fi radio up (esp_wifi through esp_wifi_remote on chips
-   * without a radio of their own). */
+  /** Bring the Wi-Fi radio and the SNTP clock up (esp_wifi through
+   * esp_wifi_remote on chips without a radio of their own). */
   bool wifi;
   /** Runs on the radio's task before esp_wifi_init, or NULL: power and
    * connect a radio coprocessor. */

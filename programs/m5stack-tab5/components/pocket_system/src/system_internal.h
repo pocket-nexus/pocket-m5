@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include "esp_err.h"
 #include "quickjs.h"
@@ -20,6 +21,11 @@ bool wifi_forget(int slot);
 /* An address is assigned: sockets reach the LAN. */
 bool wifi_online(void);
 void wifi_address(char *out, size_t capacity);
+
+/* clock.c: the wall clock from SNTP, started with the radio. clock_wait
+ * returns true once the clock has been set, false after `ms` without. */
+void clock_start(void);
+bool clock_wait(uint32_t ms);
 
 /* services_host.c: run `job` on the system task, whose stack is internal
  * (flash access), and return when it has finished. */

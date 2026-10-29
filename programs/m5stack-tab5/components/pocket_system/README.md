@@ -2,7 +2,7 @@
 
 The system services of the Tab5 as a launcher console: installed apps and
 switching between them, the Pocket Link to a paired companion, a guest's
-`data.fs` tree and the Wi-Fi radio.
+`data.fs` tree, the Wi-Fi radio and the SNTP clock.
 
 - Public header: `pocket/system.h`
 - Shared state machines: `engine/host-services` (`link.c`, `launcher.c`,
@@ -57,3 +57,11 @@ the `pocketjs_radio` task (8 KB, internal RAM) makes those calls, a scan when
 the guest asked for one (`scan_requested`, `scan_done`) and the RSSI read on
 an interval while connected; `status` answers from the cached state without
 touching the link.
+
+## Clock
+
+`clock.c` starts the SNTP client (`esp_netif_sntp`,
+`CONFIG_POCKET_SYSTEM_SNTP_SERVER`, `pool.ntp.org` by default) each time the
+radio is assigned an address, so a new network synchronizes the clock within
+one exchange; lwIP then synchronizes every `CONFIG_LWIP_SNTP_UPDATE_DELAY` ms
+(one hour). The clock is UTC and backs `gettimeofday` and the guest's `Date`.

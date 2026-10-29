@@ -21,7 +21,8 @@ pocket-nexus/pocketjs#617.
 The home variant is a launcher console (`TAB5_LAUNCHER`): `components/pocket_system`
 keeps a store of installed apps on the microSD card (SDSPI; the `storage`
 flash partition without a card), the Pocket Link to a paired companion,
-each app's `data.fs` tree and the Wi-Fi radio on the ESP32-C6 (esp_hosted).
+each app's `data.fs` tree, the Wi-Fi radio on the ESP32-C6 (esp_hosted) and
+the wall clock from SNTP.
 A guest has no network module: no UI realm has one upstream, and this
 program runs no worker domain to serve `io.http`. The program embeds Pocket
 Home, compiled in pocket-shell against `home.runtime-config.ts`, as the
