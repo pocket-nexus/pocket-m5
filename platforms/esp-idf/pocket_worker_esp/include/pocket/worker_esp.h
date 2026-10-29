@@ -21,6 +21,10 @@ typedef struct {
   /* Bootstrap channels/resources, then wait for resume before executing turns.
    */
   bool defer_turns;
+  /* heap_caps capabilities of the QuickJS allocations and of the task stack;
+   * zero selects internal RAM. A PSRAM stack suits a worker whose nodes make
+   * no flash or NVS calls. */
+  uint32_t heap_caps, task_stack_caps;
 } pocket_worker_esp_config;
 
 /* Source, node table and driver objects must outlive the runner. */

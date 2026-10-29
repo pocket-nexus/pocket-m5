@@ -14,7 +14,8 @@ pocket-m5/
 │  ├─ m5_bsp_tab5/              Tab5 board: I2C, expanders, rails, panel, touch, SD
 │  ├─ pocket_display_esp_dpi_flip/   display output over a double-buffered DPI panel
 │  ├─ pocket_input_esp_touch/   multi-contact input source over esp_lcd_touch
-│  └─ pocket_app_host/          package catalog, install inbox, guest switching
+│  ├─ pocket_app_host/          package catalog, install inbox, guest switching
+│  └─ pocket_http_esp/          worker http node over esp_http_client
 ├─ programs/
 │  ├─ tab5/                     IDF project: main.c, runtime config, profile, sdkconfig, partitions
 │  │  └─ profile.ts             m5stack-tab5: 720x1280 physical, 360x640 logical, density 2
@@ -24,7 +25,8 @@ pocket-m5/
 │     └─ apps/                  Tab5 manifests of pocketjs apps/hero and apps/clear
 ├─ apps/
 │  ├─ home/                     launcher embedded in the firmware
-│  └─ hello/                    installable sample
+│  ├─ hello/                    installable sample
+│  └─ worker-http/              worker HTTP check for programs/m5stack-tab5
 ├─ tools/                       pocket CLI wrapper, app packaging, formatter
 └─ docs/                        board and app-host reference
 ```

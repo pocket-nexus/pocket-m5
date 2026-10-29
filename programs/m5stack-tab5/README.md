@@ -21,12 +21,10 @@ pocket-nexus/pocketjs#617.
 The home variant is a launcher console (`TAB5_LAUNCHER`): `components/pocket_system`
 keeps a store of installed apps on the microSD card (SDSPI; the `storage`
 flash partition without a card), the Pocket Link to a paired companion,
-each app's `data.fs` tree and the Wi-Fi radio on the ESP32-C6 (esp_hosted).
-A guest has no network module: no UI realm has one upstream, and this
-program runs no worker domain to serve `io.http`. The program embeds Pocket
-Home, compiled in pocket-shell against `home.runtime-config.ts`, as the
-launcher and boots one runtime per app; SELECT from the home control returns
-to the launcher. The
+each app's `data.fs` tree, the Wi-Fi radio on the ESP32-C6 (esp_hosted) and
+the wall clock from SNTP. The program embeds Pocket Home, compiled in
+pocket-shell against `home.runtime-config.ts`, as the launcher and boots one
+runtime per app; SELECT from the home control returns to the launcher. The
 primary surface of the profile is laid out into a PSRAM buffer that nothing
 scans out. `pocket_idf_package_open` (the IDF archive) admits a stored package
 for the profile before the runtime boots it. `components/pocket_camera` serves
@@ -35,14 +33,33 @@ QR decoding, JPEG stills on the card) and `components/pocket_media` serves
 `globalThis.media` (the companion's stream on the ES8388 speaker) to a guest
 whose plan declares those capabilities.
 
+A UI realm has no network module. An app whose package carries a worker
+domain (`domains.worker`, package section 8) gets its own worker runtime
+(`pocket_worker_esp`) with one `http` node: `io.http` requests the Tab5 makes
+itself over Wi-Fi with `pocket_http_esp` (HTTPS with the ESP certificate
+bundle, mbedTLS buffers in PSRAM, certificate dates checked against the SNTP
+clock). The worker starts before the realm evaluates, its channels mirror into
+the realm once per frame (`before_tick`), and it stops before the realm and
+the package bytes are released. Its QuickJS heap (384 KiB) and its 24 KiB
+task stack are in PSRAM; it runs on core 1 at priority 3, below the render
+lane, and the two HTTP request tasks at priority 2. An app whose worker fails
+returns to the launcher with the failure shown. The
+`tab5-home` profile lists `runtime.worker` and `net.http`, so packages built
+against an earlier `tab5-home`, Pocket Home included, must be rebuilt.
+`pocket_worker_esp` requires ESP-IDF 6.2.x. `apps/worker-http` is the device
+check: embedded as the home package it joins a Wi-Fi network and fetches a URL
+once connected and on each tap.
+
 A picture smaller than the screen sits between two equal black margins. The
 display moves retained pixels for content that only scrolled
 (`POCKET_DISPLAY_RETAINED_MOVE`); the runtime's damage planner finds those
 moves and repaints the rest. Pocket Clear holds 30 fps at 720x1280 this way
-(`tickHz: 30` in its profile). Each strip holds a multiple of the rows that
-span whole 128-byte cache lines (`line_rows`: four 1184-byte rows at 592x1,
-one 1280-byte row at 640x1), and a turned strip a multiple of 8 raster rows
-besides.
+(`tickHz: 30` in its profile). One AXI GDMA pair carries both the whole-row
+strip copies and the retained moves; of the AXI GDMA's other two pairs the
+card's SPI bus holds one and the SHA and AES accelerators take the other.
+Each strip holds a multiple of the rows that span whole 128-byte cache lines
+(`line_rows`: four 1184-byte rows at 592x1, one 1280-byte row at 640x1), and
+a turned strip a multiple of 8 raster rows besides.
 
 The launcher paints a 56-px translucent ball at the right edge of the
 picture, halfway down, as two ARGB8888 faces (resting and pressed) in PSRAM

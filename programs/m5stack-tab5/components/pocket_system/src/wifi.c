@@ -394,6 +394,7 @@ static void bring_up(void *argument) {
   give();
   esp_netif_init();
   esp_event_loop_create_default();
+  clock_start();
   esp_netif_create_default_wifi_sta();
   wifi_init_config_t config = WIFI_INIT_CONFIG_DEFAULT();
   result = prepare != NULL ? prepare() : ESP_OK;

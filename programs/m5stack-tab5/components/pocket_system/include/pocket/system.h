@@ -3,9 +3,9 @@
 /*
  * The system services of the Tab5 as a launcher console: installed apps and
  * switching between them, the Pocket Link to a paired companion, a guest's
- * data.fs tree and the Wi-Fi radio. The state machines are
- * engine/host-services; this component keeps the store, the radio and the
- * QuickJS bindings.
+ * data.fs tree, the Wi-Fi radio and the SNTP clock. The state machines are
+ * engine/host-services; this component keeps the store, the radio, the clock
+ * and the QuickJS bindings.
  *
  * The store lives under one mounted directory (`root`):
  *
@@ -18,8 +18,8 @@
  * launcher is the package the firmware embeds; it gets a slot for its data
  * like any app.
  *
- * Threads: everything except pocketjs_system_start runs on the task that
- * runs the runtime.
+ * Threads: everything except pocketjs_system_start, pocketjs_system_online
+ * and pocketjs_system_clock_wait runs on the task that runs the runtime.
  */
 
 #include <stdbool.h>
@@ -48,8 +48,8 @@ typedef struct {
   /** The console's name and model in the link handshake. */
   const char *device_name;
   const char *device_model;
-  /** Bring the Wi-Fi radio up (esp_wifi through esp_wifi_remote on chips
-   * without a radio of their own). */
+  /** Bring the Wi-Fi radio and the SNTP clock up (esp_wifi through
+   * esp_wifi_remote on chips without a radio of their own). */
   bool wifi;
   /** Runs on the radio's task before esp_wifi_init, or NULL: power and
    * connect a radio coprocessor. */
@@ -102,6 +102,18 @@ void pocketjs_system_summon(void);
 bool pocketjs_system_launcher_running(void);
 /** The running app failed: the launcher shows `message` once. */
 void pocketjs_system_report_failure(const char *message);
+
+/** The worker source of an app (package section 8 of its variant for the
+ * firmware's profile), or false when it declares no worker domain. The
+ * bytes live as long as the app. */
+bool pocketjs_system_app_worker(const pocketjs_system_app_t *app,
+                                const char **source, size_t *size);
+
+/** Callable from any task: the radio has an address. */
+bool pocketjs_system_online(void);
+/** Callable from any task: wait at most `ms` for the SNTP clock; true once
+ * it has been set. */
+bool pocketjs_system_clock_wait(uint32_t ms);
 
 #ifdef __cplusplus
 }
