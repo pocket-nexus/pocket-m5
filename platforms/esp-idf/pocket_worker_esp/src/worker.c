@@ -25,18 +25,20 @@ typedef union {
   size_t size;
   max_align_t alignment;
 } alloc_header;
-static void *internal_malloc(void *opaque, size_t size) {
+static uint32_t heap_caps(const pocket_worker_esp *host) {
+  return host && host->config.heap_caps ? host->config.heap_caps
+                                        : MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
+}
+static void *guest_malloc(void *opaque, size_t size) {
   pocket_worker_esp *host = opaque;
   if (!size || size > SIZE_MAX - sizeof(alloc_header))
     return NULL;
-  alloc_header *block = heap_caps_malloc(sizeof(*block) + size,
-                                         MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  const uint32_t caps = heap_caps(host);
+  alloc_header *block = heap_caps_malloc(sizeof(*block) + size, caps);
   if (!block) {
-    ESP_LOGE("pocket_worker",
-             "allocation failed bytes=%u internal_free=%u largest=%u",
-             (unsigned)size,
-             (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
-             (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+    ESP_LOGE("pocket_worker", "allocation failed bytes=%u free=%u largest=%u",
+             (unsigned)size, (unsigned)heap_caps_get_free_size(caps),
+             (unsigned)heap_caps_get_largest_free_block(caps));
     return NULL;
   }
   block->size = size;
@@ -47,15 +49,15 @@ static void *internal_malloc(void *opaque, size_t size) {
   }
   return block + 1;
 }
-static void *internal_calloc(void *opaque, size_t count, size_t size) {
+static void *guest_calloc(void *opaque, size_t count, size_t size) {
   if (count && size > SIZE_MAX / count)
     return NULL;
-  void *result = internal_malloc(opaque, count * size);
+  void *result = guest_malloc(opaque, count * size);
   if (result)
     memset(result, 0, count * size);
   return result;
 }
-static void internal_free(void *opaque, void *pointer) {
+static void guest_free(void *opaque, void *pointer) {
   pocket_worker_esp *host = opaque;
   if (pointer) {
     if (host)
@@ -63,14 +65,14 @@ static void internal_free(void *opaque, void *pointer) {
     heap_caps_free((alloc_header *)pointer - 1);
   }
 }
-static size_t internal_size(const void *pointer) {
+static size_t guest_size(const void *pointer) {
   return pointer ? ((const alloc_header *)pointer - 1)->size : 0;
 }
-static void *internal_realloc(void *opaque, void *pointer, size_t size) {
+static void *guest_realloc(void *opaque, void *pointer, size_t size) {
   if (!pointer)
-    return internal_malloc(opaque, size);
+    return guest_malloc(opaque, size);
   if (!size) {
-    internal_free(opaque, pointer);
+    guest_free(opaque, pointer);
     return NULL;
   }
   if (size > SIZE_MAX - sizeof(alloc_header))
@@ -78,8 +80,8 @@ static void *internal_realloc(void *opaque, void *pointer, size_t size) {
   pocket_worker_esp *host = opaque;
   alloc_header *block = (alloc_header *)pointer - 1;
   const size_t previous = block->size;
-  alloc_header *next = heap_caps_realloc(block, sizeof(*block) + size,
-                                         MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  alloc_header *next =
+      heap_caps_realloc(block, sizeof(*block) + size, heap_caps(host));
   if (!next)
     return NULL;
   next->size = size;
@@ -90,12 +92,12 @@ static void *internal_realloc(void *opaque, void *pointer, size_t size) {
   }
   return next + 1;
 }
-static const JSMallocFunctions allocator = {.js_malloc = internal_malloc,
-                                            .js_calloc = internal_calloc,
-                                            .js_free = internal_free,
-                                            .js_realloc = internal_realloc,
+static const JSMallocFunctions allocator = {.js_malloc = guest_malloc,
+                                            .js_calloc = guest_calloc,
+                                            .js_free = guest_free,
+                                            .js_realloc = guest_realloc,
                                             .js_malloc_usable_size =
-                                                internal_size};
+                                                guest_size};
 
 static void core_lock(void *context) {
   pocket_worker_esp *worker = context;
@@ -237,10 +239,9 @@ static void run(void *opaque) {
         .wait = wait_until,
         .after_turn = drain_console,
         .start_paused = host->config.defer_turns};
-    ESP_LOGI("pocket_worker",
-             "before load internal_free=%u largest=%u heap_limit=%u",
-             (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
-             (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
+    ESP_LOGI("pocket_worker", "before load free=%u largest=%u heap_limit=%u",
+             (unsigned)heap_caps_get_free_size(heap_caps(host)),
+             (unsigned)heap_caps_get_largest_free_block(heap_caps(host)),
              (unsigned)host->config.heap_limit);
     host->runner = pocket_worker_runner_create(&config);
     drain_console(host);
@@ -251,10 +252,9 @@ static void run(void *opaque) {
                pocket_worker_runner_error(host->runner));
       host->startup = ESP_FAIL;
     } else {
-      ESP_LOGI("pocket_worker",
-               "loaded guest_used=%u guest_peak=%u internal_free=%u",
+      ESP_LOGI("pocket_worker", "loaded guest_used=%u guest_peak=%u free=%u",
                (unsigned)host->guest_used, (unsigned)host->guest_peak,
-               (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+               (unsigned)heap_caps_get_free_size(heap_caps(host)));
     }
   }
   xSemaphoreGive(host->ready);
@@ -306,10 +306,18 @@ esp_err_t pocket_worker_esp_start(const pocket_worker_esp_config *config,
   host->mutex = xSemaphoreCreateMutex();
   host->ready = xSemaphoreCreateBinary();
   host->done = xSemaphoreCreateBinary();
-  if (!host->mutex || !host->ready || !host->done ||
-      xTaskCreatePinnedToCore(run, "pocket_worker", config->task_stack_size,
-                              host, config->task_priority, &host->task,
-                              config->task_core) != pdPASS) {
+  const BaseType_t created =
+      host->mutex && host->ready && host->done
+          ? config->task_stack_caps
+                ? xTaskCreatePinnedToCoreWithCaps(
+                      run, "pocket_worker", config->task_stack_size, host,
+                      config->task_priority, &host->task, config->task_core,
+                      config->task_stack_caps)
+                : xTaskCreatePinnedToCore(
+                      run, "pocket_worker", config->task_stack_size, host,
+                      config->task_priority, &host->task, config->task_core)
+          : pdFAIL;
+  if (created != pdPASS) {
     if (host->mutex)
       vSemaphoreDelete(host->mutex);
     if (host->ready)
@@ -340,7 +348,10 @@ esp_err_t pocket_worker_esp_stop(pocket_worker_esp *host, uint32_t timeout_ms) {
     if (xSemaphoreTake(host->done, wait) != pdTRUE)
       return ESP_ERR_TIMEOUT;
   }
-  vTaskDelete(host->task);
+  if (host->config.task_stack_caps)
+    vTaskDeleteWithCaps(host->task);
+  else
+    vTaskDelete(host->task);
   vSemaphoreDelete(host->done);
   vSemaphoreDelete(host->ready);
   vSemaphoreDelete(host->mutex);
