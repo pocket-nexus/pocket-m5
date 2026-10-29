@@ -9,6 +9,10 @@ ${CC:-cc} -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
   platforms/esp-idf/pocket_io_esp/src/protocol.c -o "$validation_dir/io-protocol"
 "$validation_dir/io-protocol"
 ${CC:-cc} -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
+  -I platforms/esp-idf/pocket_http_esp/src tests/http-record.c \
+  platforms/esp-idf/pocket_http_esp/src/record.c -o "$validation_dir/http-record"
+"$validation_dir/http-record"
+${CC:-cc} -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
   -I platforms/esp-idf/pocket_app_host/src tests/worker-package.c \
   platforms/esp-idf/pocket_app_host/src/package_info.c -o "$validation_dir/worker-package"
 "$validation_dir/worker-package"
