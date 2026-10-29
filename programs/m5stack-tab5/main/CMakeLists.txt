@@ -1,7 +1,7 @@
 set(POCKETJS_TAB5_APP "hero" CACHE STRING "Embedded app: hero, clear or home")
 # The requirement list is read in the early expansion pass, before the cache
-# holds the selected app, so every variant links the system component; only
-# the home variant compiles it in (TAB5_LAUNCHER).
+# holds the selected app, so every variant links the system, worker and HTTP
+# components; only the home variant compiles them in (TAB5_LAUNCHER).
 idf_component_register(
     SRCS "main.c" "tab5_camera_media.c" "tab5_keyboard.c"
     REQUIRES
@@ -17,8 +17,10 @@ idf_component_register(
         pocket_runner
         pocket_runtime
         pocket_camera
+        pocket_http_esp
         pocket_media
         pocket_system
+        pocket_worker_esp
 )
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wall -Wextra -Werror)

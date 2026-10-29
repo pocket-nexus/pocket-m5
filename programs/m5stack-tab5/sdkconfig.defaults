@@ -29,6 +29,13 @@ CONFIG_ESP_HOSTED_AUTO_CALL_INIT_BEFORE_APP_MAIN=n
 CONFIG_ESP_HOSTED_DFLT_TASK_FROM_SPIRAM=y
 CONFIG_EH_HOST_PORT_DMA_PREFER_SPIRAM=y
 CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
+# Worker HTTP (pocket_http_esp): mbedTLS takes its buffers from PSRAM and
+# checks certificate dates against the SNTP clock. The ECDSA peripheral needs
+# chip revision 3.0 (ecdsa_ll_is_supported); below it every verification
+# logs an error before falling back to software.
+CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y
+CONFIG_MBEDTLS_HAVE_TIME_DATE=y
+# CONFIG_MBEDTLS_HARDWARE_ECDSA_VERIFY is not set
 # The launcher's store: long names on FAT, the microSD card mounted where
 # the flash partition would be.
 CONFIG_FATFS_LFN_HEAP=y

@@ -14,12 +14,13 @@ The Tab5 has two application firmware programs:
 | Program | Pictures | Apps and switching | Status |
 | --- | --- | --- | --- |
 | [`programs/tab5`](programs/tab5/README.md) | 360×640 portrait at density 2, double-buffered flip | embedded home; packages from the SD card inbox; swipe up for home | builds; device validation open |
-| [`programs/m5stack-tab5`](programs/m5stack-tab5/README.md) | Hero 640×360 landscape, Clear 360×640 portrait, Pocket Home 640×360 at 2x | pocket-shell's Pocket Home; installs over the Pocket Link from a Mac; home ball; Wi-Fi, camera, media, keyboard | imported from pocketjs#616, measured on the device there |
+| [`programs/m5stack-tab5`](programs/m5stack-tab5/README.md) | Hero 640×360 landscape, Clear 360×640 portrait, Pocket Home 640×360 at 2x | pocket-shell's Pocket Home; installs over the Pocket Link from a Mac; home ball; Wi-Fi, SNTP clock, worker HTTP, camera, media, keyboard | imported from pocketjs#616, measured on the device there |
 
 The separate [`programs/tab5-worker`](programs/tab5-worker/README.md)
 diagnostic exercises onboard RTC/IMU I2C, UART loopback, and UI/worker channels.
 The normal launcher can enable the same worker components with its worker
-profile; see [Worker IO](docs/WORKER.md).
+profile; `programs/m5stack-tab5` gives app workers an `http` node
+(`pocket_http_esp`). See [Worker IO](docs/WORKER.md).
 
 ## Requirements
 

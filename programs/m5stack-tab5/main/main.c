@@ -8,7 +8,9 @@
  * and floats a home ball over the picture: a tap sends SELECT (or summons
  * the launcher from an app), a finger that moves at once drags the ball, a
  * finger that rests on it and then slides makes a gesture named by its
- * direction. A Tab5 keyboard on Ext.Port1 sends text events. */
+ * direction. A Tab5 keyboard on Ext.Port1 sends text events. An app that
+ * declares a worker domain gets its own worker runtime (pocket_worker_esp)
+ * with one `http` node, HTTP and HTTPS over the radio (pocket_http_esp). */
 #include <assert.h>
 #include <inttypes.h>
 #include <math.h>
@@ -48,7 +50,10 @@
 #if TAB5_LAUNCHER
 #include "esp_hosted.h"
 #include "esp_private/gdma.h"
+#include "pocket/http_esp.h"
 #include "pocket/system.h"
+#include "pocket/worker_esp.h"
+#include "pocket/worker_ui.h"
 #endif
 
 static const char *TAG = "pocketjs_tab5";
@@ -89,6 +94,14 @@ static const char *TAG = "pocketjs_tab5";
 /* Where the launcher keeps installed apps: the microSD card when one is in
  * the slot, the `storage` flash partition otherwise. */
 #define TAB5_STORE "/pocket"
+/* An app's worker domain: its QuickJS heap and task stack in PSRAM, which
+ * leaves the internal RAM to the strips. It runs on core 1 below the render
+ * lane (priority 5), and its HTTP requests below it. */
+#define TAB5_WORKER_HEAP (384U * 1024U)
+#define TAB5_WORKER_STACK (24U * 1024U)
+#define TAB5_WORKER_STACK_LIMIT (16U * 1024U)
+#define TAB5_WORKER_PRIORITY 3U
+#define TAB5_HTTP_PRIORITY 2U
 
 /* The primary surface of a profile whose picture is the auxiliary surface:
  * laid out off screen into one PSRAM buffer that nothing scans out. */
@@ -109,6 +122,11 @@ typedef struct {
   pocket_render_esp_ppa *renderers[2];
   pocketjs_esp32p4_ppa_lanes_t *lanes;
   pocket_memory_package package;
+#if TAB5_LAUNCHER
+  /* The app's worker domain and the bridge of its channels into the realm. */
+  pocket_worker_esp *worker;
+  pocket_worker_ui *worker_ui;
+#endif
 } tab5_guest_t;
 
 typedef struct {
@@ -156,6 +174,15 @@ typedef struct {
   /* Launcher mode: the task that switches guests, woken by the runner. */
   TaskHandle_t app_task;
   bool switch_signalled;
+#if TAB5_LAUNCHER
+  /* The worker nodes and settings every app's worker domain gets; set when
+   * the running app's worker failed. */
+  pocket_worker_node worker_nodes[1];
+  pocket_worker_esp_config worker_config;
+  uint32_t worker_generation;
+  volatile bool worker_failed;
+  bool worker_logged;
+#endif
   int64_t tick_started;
   uint64_t tick_us;
   uint32_t tick_max_us;
@@ -592,6 +619,15 @@ static void before_tick(void *context) {
   host->tick_started = esp_timer_get_time();
   tab5_camera_media_present();
 #if TAB5_LAUNCHER
+  /* The frame reads the worker channels latched here. A worker fault or a
+   * failed latch ends the app; the app task switches guests. */
+  tab5_guest_t *running = &host->running;
+  if (running->worker != NULL && !host->worker_failed &&
+      (pocket_worker_esp_failed(running->worker) ||
+       pocket_worker_ui_latch(running->worker_ui) != POCKET_WORKER_OK)) {
+    host->worker_failed = true;
+    xTaskNotifyGive(host->app_task);
+  }
   pocketjs_system_pump();
   if (pocketjs_system_switch_pending() && !host->switch_signalled) {
     host->switch_signalled = true;
@@ -619,6 +655,13 @@ static void stop_guest(tab5_host_t *host) {
   tab5_guest_t *running = &host->running;
   if (running->runner)
     ESP_ERROR_CHECK(pocket_runner_stop(running->runner));
+  /* The bridge borrows the realm and the worker core; native IO ends before
+   * the package bytes holding the worker source go. */
+  if (running->worker_ui)
+    pocket_worker_ui_detach(running->worker_ui);
+  if (running->worker)
+    while (pocket_worker_esp_stop(running->worker, 1000) == ESP_ERR_TIMEOUT)
+      ESP_LOGW(TAG, "waiting for the worker's native IO to stop");
   /* Camera and media textures belong to the runtime, which goes before its
    * guest, renderers and displays. */
   if (running->runtime) {
@@ -640,12 +683,12 @@ static void stop_guest(tab5_host_t *host) {
 
 /* Boot the application in `bytes` and start its runner. `bind` records it
  * as the running app of the launcher mode and installs the system
- * namespaces into its realm. */
-static int32_t boot_guest(tab5_host_t *host, const uint8_t *bytes, size_t size,
-                          int32_t (*bind)(JSContext *realm,
-                                          pocket_runtime *runtime,
-                                          void *context),
-                          void *bind_context) {
+ * namespaces into its realm; `worker`, when not NULL, is the source of its
+ * worker domain. */
+static int32_t boot_guest(
+    tab5_host_t *host, const uint8_t *bytes, size_t size,
+    int32_t (*bind)(JSContext *realm, pocket_runtime *runtime, void *context),
+    void *bind_context, const char *worker, size_t worker_size) {
   tab5_guest_t *running = &host->running;
   const pocket_profile_facts *facts = pocket_profile.facts;
   pocket_runtime_config config = {
@@ -717,6 +760,34 @@ static int32_t boot_guest(tab5_host_t *host, const uint8_t *bytes, size_t size,
   if (status == POCKET_STATUS_OK && bind)
     status = bind(pocket_guest_idf_context(running->guest), running->runtime,
                   bind_context);
+#if TAB5_LAUNCHER
+  /* The worker declares its channels before the realm evaluates and runs
+   * its first turn after; the bridge mirrors the channels into the realm. */
+  host->worker_failed = false;
+  host->worker_logged = false;
+  if (status == POCKET_STATUS_OK && worker != NULL) {
+    pocket_worker_esp_config config = host->worker_config;
+    config.source = worker;
+    config.source_size = worker_size;
+    config.generation = ++host->worker_generation;
+    config.defer_turns = true;
+    const esp_err_t started =
+        pocket_worker_esp_start(&config, &running->worker);
+    if (started == ESP_OK)
+      running->worker_ui =
+          pocket_worker_ui_attach(pocket_guest_idf_context(running->guest),
+                                  pocket_worker_esp_core(running->worker));
+    if (started != ESP_OK || running->worker_ui == NULL) {
+      ESP_LOGE(TAG, "worker: %s",
+               started != ESP_OK ? esp_err_to_name(started)
+                                 : "channel bridge creation failed");
+      status = POCKET_STATUS_FAILED;
+    }
+  }
+#else
+  (void)worker;
+  (void)worker_size;
+#endif
   if (status == POCKET_STATUS_OK) {
     const int64_t started = esp_timer_get_time();
     status = pocket_runtime_boot(running->runtime);
@@ -729,6 +800,10 @@ static int32_t boot_guest(tab5_host_t *host, const uint8_t *bytes, size_t size,
   }
   if (status != POCKET_STATUS_OK)
     return status;
+#if TAB5_LAUNCHER
+  if (running->worker != NULL)
+    pocket_worker_esp_resume(running->worker);
+#endif
   pocket_runner_config_t runner_config;
   pocket_runner_config_defaults(&runner_config);
   runner_config.task_stack_bytes = TAB5_GUEST_STACK;
@@ -760,7 +835,12 @@ static int32_t bind_system(JSContext *realm, pocket_runtime *runtime,
 static int32_t boot_app(tab5_host_t *host, pocketjs_system_app_t *app) {
   size_t size = 0;
   const uint8_t *bytes = pocketjs_system_app_bytes(app, &size);
-  const int32_t status = boot_guest(host, bytes, size, bind_system, app);
+  const char *worker = NULL;
+  size_t worker_size = 0;
+  if (!pocketjs_system_app_worker(app, &worker, &worker_size))
+    worker = NULL;
+  const int32_t status =
+      boot_guest(host, bytes, size, bind_system, app, worker, worker_size);
   if (status != POCKET_STATUS_OK) {
     stop_guest(host);
     pocketjs_system_unbind();
@@ -825,6 +905,50 @@ static bool axi_dma_free(void) {
   gdma_del_channel(tx);
   gdma_del_channel(rx);
   return true;
+}
+
+static bool http_online(void *context) {
+  (void)context;
+  return pocketjs_system_online();
+}
+
+static bool http_clock_wait(void *context, uint32_t ms) {
+  (void)context;
+  return pocketjs_system_clock_wait(ms);
+}
+
+/* The `http` node every app's worker domain gets, and its settings. */
+static void start_worker_host(tab5_host_t *host) {
+  const pocket_http_esp_config http = {
+      .struct_size = sizeof(http),
+      .online = http_online,
+      .clock_wait = http_clock_wait,
+      .memory_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,
+      .task_stack_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,
+      .task_core = 1,
+      .task_priority = TAB5_HTTP_PRIORITY,
+  };
+  pocket_http_esp *driver = pocket_http_esp_create(&http);
+  assert(driver != NULL);
+  host->worker_nodes[0] = (pocket_worker_node){
+      .struct_size = sizeof(host->worker_nodes[0]),
+      .kind = POCKET_WORKER_HTTP,
+      .name = "http",
+      .driver = pocket_http_esp_driver(driver),
+  };
+  host->worker_config = (pocket_worker_esp_config){
+      .struct_size = sizeof(host->worker_config),
+      .nodes = host->worker_nodes,
+      .node_count = 1,
+      .heap_limit = TAB5_WORKER_HEAP,
+      .stack_limit = TAB5_WORKER_STACK_LIMIT,
+      .task_stack_size = TAB5_WORKER_STACK,
+      /* The guest's runner holds core 0; the worker takes no share of it. */
+      .task_core = 1,
+      .task_priority = TAB5_WORKER_PRIORITY,
+      .heap_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,
+      .task_stack_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,
+  };
 }
 
 /* Storage and the system services of launcher mode. */
@@ -1002,13 +1126,14 @@ static void run_app(void *unused) {
 
 #if TAB5_LAUNCHER
   start_system();
+  start_worker_host(&host);
   pocketjs_system_app_t *app = NULL;
   ESP_ERROR_CHECK(pocketjs_system_load_launcher(&app));
   if (boot_app(&host, app) != POCKET_STATUS_OK)
     abort();
 #else
   if (boot_guest(&host, pocketjs_package_app.data, pocketjs_package_app.size,
-                 NULL, NULL) != POCKET_STATUS_OK)
+                 NULL, NULL, NULL, 0) != POCKET_STATUS_OK)
     abort();
 #endif
 
@@ -1019,13 +1144,25 @@ static void run_app(void *unused) {
     pocket_runner_stats_t stats = {.struct_size = sizeof(stats)};
     ESP_ERROR_CHECK(pocket_runner_stats(host.running.runner, &stats));
 #if TAB5_LAUNCHER
-    if (woken || (stats.frame_errors != last.frame_errors &&
-                  !pocketjs_system_app_is_launcher(app))) {
-      /* An app that throws from a frame goes back to the launcher, which
-       * shows the failure once. */
-      if (!woken)
-        pocketjs_system_report_failure("the app stopped with an error");
-      app = switch_guest(&host, app, !woken);
+    /* The runner wakes this task for a switch the launcher asked for, and
+     * for a failed worker. An app that throws from a frame or whose worker
+     * failed goes back to the launcher, which shows the failure once; the
+     * launcher itself keeps running without its worker's channels. */
+    const bool launcher = pocketjs_system_app_is_launcher(app);
+    const bool requested = woken && host.switch_signalled;
+    const bool worker_failed = host.worker_failed;
+    if (worker_failed && launcher && !host.worker_logged) {
+      ESP_LOGE(TAG, "the launcher's worker stopped");
+      host.worker_logged = true;
+    }
+    const bool failed =
+        !launcher && (worker_failed || stats.frame_errors != last.frame_errors);
+    if (requested || failed) {
+      if (!requested)
+        pocketjs_system_report_failure(worker_failed
+                                           ? "the app's worker stopped"
+                                           : "the app stopped with an error");
+      app = switch_guest(&host, app, !requested);
       last = (pocket_runner_stats_t){.struct_size = sizeof(last)};
       continue;
     }

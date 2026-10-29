@@ -5,7 +5,9 @@ import { defineProfile } from "@pocketjs/framework/profile";
  * the auxiliary surface, 640x360 at raster density 1, which the program
  * presents at 2x over the whole 1280x720 screen; the primary surface stays
  * off screen. A home control the program draws sends SELECT; the Tab5
- * keyboard on Ext.Port1, when one is attached, sends text events.
+ * keyboard on Ext.Port1, when one is attached, sends text events. An app's
+ * worker domain gets an `http` node: HTTP and HTTPS from the Tab5 over its
+ * Wi-Fi radio.
  */
 export default defineProfile({
   id: "tab5-home",
@@ -36,5 +38,7 @@ export default defineProfile({
     "camera.photo",
     "data.fs",
     "media.playback",
+    "runtime.worker",
+    "net.http",
   ],
 });

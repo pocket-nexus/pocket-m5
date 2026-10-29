@@ -148,6 +148,55 @@ static bool open_package(const uint8_t *bytes, size_t size,
   return false;
 }
 
+static uint32_t le32(const uint8_t *p) {
+  return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 |
+         (uint32_t)p[3] << 24;
+}
+
+/* Package section 8 of the variant for the firmware's target, binding
+ * generation and profile (contracts/spec/pocket-package.ts): the worker
+ * source, NUL-terminated. Call on an admitted package. */
+static bool worker_section(const uint8_t *bytes, size_t size,
+                           const char **source, size_t *length) {
+  enum { HEADER = 32, VARIANT = 64, SECTION = 16, FOOTER = 8, WORKER = 8 };
+  if (size < HEADER + FOOTER)
+    return false;
+  const uint64_t payload = size - FOOTER;
+#define WITHIN(offset, count)                                                  \
+  ((uint64_t)(offset) <= payload && (uint64_t)(count) <= payload - (offset))
+  const uint64_t table = HEADER + ((uint64_t)le32(bytes + 8) + 15) / 16 * 16;
+  const uint32_t variants = le32(bytes + 12);
+  const size_t target_length = strlen(config.target);
+  if (variants > 64 || !WITHIN(table, (uint64_t)variants * VARIANT))
+    return false;
+  for (uint32_t v = 0; v < variants; ++v) {
+    const uint8_t *variant = bytes + table + (uint64_t)v * VARIANT;
+    const uint32_t target = le32(variant), target_size = le32(variant + 4);
+    if (le32(variant + 8) != config.host_abi ||
+        memcmp(variant + 32, config.profile_hash, 32) ||
+        !WITHIN(target, target_size) || target_size != target_length ||
+        memcmp(bytes + target, config.target, target_length))
+      continue;
+    const uint32_t count = le32(variant + 12), sections = le32(variant + 16);
+    if (count > 64 || !WITHIN(sections, (uint64_t)count * SECTION))
+      return false;
+    for (uint32_t s = 0; s < count; ++s) {
+      const uint8_t *section = bytes + sections + (uint64_t)s * SECTION;
+      const uint32_t start = le32(section + 8), span = le32(section + 12);
+      if (le32(section) != WORKER)
+        continue;
+      if (span < 2 || !WITHIN(start, span) || bytes[start + span - 1] != 0)
+        return false;
+      *source = (const char *)bytes + start;
+      *length = span - 1;
+      return true;
+    }
+    return false;
+  }
+#undef WITHIN
+  return false;
+}
+
 static LauncherPackage facts_of(const pocket_idf_package_facts *facts,
                                 const uint8_t *bytes, size_t size) {
   return (LauncherPackage){
@@ -623,3 +672,13 @@ bool pocketjs_system_launcher_running(void) { return launcher_home_running(); }
 void pocketjs_system_report_failure(const char *message) {
   launcher_report_failure(launcher_current_output(), message);
 }
+
+bool pocketjs_system_app_worker(const pocketjs_system_app_t *app,
+                                const char **source, size_t *size) {
+  return app != NULL && source != NULL && size != NULL &&
+         worker_section(app->bytes, app->size, source, size);
+}
+
+bool pocketjs_system_online(void) { return wifi_online(); }
+
+bool pocketjs_system_clock_wait(uint32_t ms) { return clock_wait(ms); }

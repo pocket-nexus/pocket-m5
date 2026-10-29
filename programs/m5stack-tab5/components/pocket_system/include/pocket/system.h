@@ -18,8 +18,8 @@
  * launcher is the package the firmware embeds; it gets a slot for its data
  * like any app.
  *
- * Threads: everything except pocketjs_system_start runs on the task that
- * runs the runtime.
+ * Threads: everything except pocketjs_system_start, pocketjs_system_online
+ * and pocketjs_system_clock_wait runs on the task that runs the runtime.
  */
 
 #include <stdbool.h>
@@ -102,6 +102,18 @@ void pocketjs_system_summon(void);
 bool pocketjs_system_launcher_running(void);
 /** The running app failed: the launcher shows `message` once. */
 void pocketjs_system_report_failure(const char *message);
+
+/** The worker source of an app (package section 8 of its variant for the
+ * firmware's profile), or false when it declares no worker domain. The
+ * bytes live as long as the app. */
+bool pocketjs_system_app_worker(const pocketjs_system_app_t *app,
+                                const char **source, size_t *size);
+
+/** Callable from any task: the radio has an address. */
+bool pocketjs_system_online(void);
+/** Callable from any task: wait at most `ms` for the SNTP clock; true once
+ * it has been set. */
+bool pocketjs_system_clock_wait(uint32_t ms);
 
 #ifdef __cplusplus
 }
