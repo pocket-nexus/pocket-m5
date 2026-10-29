@@ -40,10 +40,12 @@ A picture smaller than the screen sits between two equal black margins. The
 display moves retained pixels for content that only scrolled
 (`POCKET_DISPLAY_RETAINED_MOVE`); the runtime's damage planner finds those
 moves and repaints the rest. Pocket Clear holds 30 fps at 720x1280 this way
-(`tickHz: 30` in its profile). Each strip holds a multiple of the rows that
-span whole 128-byte cache lines (`line_rows`: four 1184-byte rows at 592x1,
-one 1280-byte row at 640x1), and a turned strip a multiple of 8 raster rows
-besides.
+(`tickHz: 30` in its profile). One AXI GDMA pair carries both the whole-row
+strip copies and the retained moves; of the AXI GDMA's other two pairs the
+card's SPI bus holds one and the SHA and AES accelerators take the other.
+Each strip holds a multiple of the rows that span whole 128-byte cache lines
+(`line_rows`: four 1184-byte rows at 592x1, one 1280-byte row at 640x1), and
+a turned strip a multiple of 8 raster rows besides.
 
 The launcher paints a 56-px translucent ball at the right edge of the
 picture, halfway down, as two ARGB8888 faces (resting and pressed) in PSRAM

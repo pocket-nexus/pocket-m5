@@ -59,7 +59,7 @@ static const char *TAG = "pocketjs_tab5";
 /* Internal RAM the launcher's strips leave to the JPEG codec and the
  * coprocessor link (see the strip budget below). */
 #define TAB5_INTERNAL_RESERVE (64U * 1024U)
-/* Copies queued on the move channel at once. */
+/* Moves queued at once on the display's copy channel. */
 #define TAB5_MOVE_BACKLOG 8U
 /* Contacts the GT911 reports at once. */
 #define TAB5_MAX_CONTACTS 5U
@@ -885,18 +885,18 @@ static void run_app(void *unused) {
   host.unit = (float)(scale * picture->raster_density);
   start_panel(&host);
 
-  /* One DMA channel copies whole-row strips; the PPA turns the others. A
-   * second channel moves retained pixels for content that only moved. */
+  /* One AXI GDMA pair copies whole-row strips (the PPA turns the others)
+   * and moves retained pixels for content that only moved. The AXI GDMA has
+   * three pairs: this one, the card's SPI bus and the SHA and AES
+   * accelerators; AHB GDMA copies PSRAM at a fraction of the rate (measured
+   * on rev 1.3: 33.6 against 153.9 MB/s into PSRAM, 8.9 against 120.3 MB/s
+   * within it). Moves finish before presents, so the two kinds of copy share
+   * the queue in order. */
   async_memcpy_handle_t copy = NULL;
   async_memcpy_config_t copy_config = ASYNC_MEMCPY_DEFAULT_CONFIG();
-  copy_config.backlog = 4;
+  copy_config.backlog = 4U + TAB5_MOVE_BACKLOG;
   copy_config.dma_burst_size = 64;
   ESP_ERROR_CHECK(esp_async_memcpy_install_gdma_axi(&copy_config, &copy));
-  async_memcpy_handle_t move_copy = NULL;
-  async_memcpy_config_t move_config = ASYNC_MEMCPY_DEFAULT_CONFIG();
-  move_config.backlog = TAB5_MOVE_BACKLOG;
-  move_config.dma_burst_size = 64;
-  ESP_ERROR_CHECK(esp_async_memcpy_install_gdma_axi(&move_config, &move_copy));
   /* PPA operands span whole 128-byte cache lines: a strip holds a count of
    * rows whose bytes are a multiple of 128 (four 1184-byte rows, one
    * 1280-byte row, four 1440-byte rows). A turned strip presented by the
@@ -949,7 +949,7 @@ static void run_app(void *unused) {
       .row_alignment = host.quantum,
       .frame_buffer_budget = strips,
       .copy = copy,
-      .move_copy = move_copy,
+      .move_copy = copy,
   };
   host.display = pocket_display_esp_dpi_create(&display_config);
   assert(host.display != NULL);
