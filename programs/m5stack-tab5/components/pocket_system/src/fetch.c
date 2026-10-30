@@ -13,7 +13,10 @@
 
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
+#include <time.h>
 
 #include "esp_crt_bundle.h"
 #include "esp_heap_caps.h"
@@ -119,12 +122,40 @@ static bool open_response(esp_http_client_handle_t client, int *status) {
   }
 }
 
+/* With no SNTP answer (pool.ntp.org did not answer one boot of a Tab5 in
+ * mainland China), set the clock to the firmware's build time if it is
+ * earlier, so a certificate issued before the build passes its date check.
+ * SNTP corrects the clock when it answers. The package's SHA-256 from the
+ * install code, not the certificate's dates, is what the install trusts. */
+static void clock_floor(void) {
+  static const char *const MONTHS = "JanFebMarAprMayJunJulAugSepOctNovDec";
+  const char *date = __DATE__, *time_of_day = __TIME__;
+  char month[4] = {date[0], date[1], date[2], '\0'};
+  const char *found = strstr(MONTHS, month);
+  struct tm built = {
+      .tm_year = atoi(date + 7) - 1900,
+      .tm_mon = found != NULL ? (int)(found - MONTHS) / 3 : 0,
+      .tm_mday = atoi(date + 4),
+      .tm_hour = atoi(time_of_day),
+      .tm_min = atoi(time_of_day + 3),
+      .tm_sec = atoi(time_of_day + 6),
+  };
+  const time_t floor = mktime(&built);
+  struct timeval now;
+  gettimeofday(&now, NULL);
+  if (floor > 0 && now.tv_sec < floor) {
+    const struct timeval set = {.tv_sec = floor};
+    settimeofday(&set, NULL);
+    ESP_LOGW(TAG, "no SNTP answer: the clock starts at the build time, %s %s",
+             __DATE__, __TIME__);
+  }
+}
+
 static bool download(FILE *file, uint8_t *chunk) {
   if (!wifi_online())
     return fail("install: Wi-Fi is not connected");
   if (strncmp(fetch.url, "https://", 8) == 0 && !clock_wait(FETCH_CLOCK_MS))
-    return fail("install: the clock is not set, so the server's certificate "
-                "cannot be checked");
+    clock_floor();
   const esp_http_client_config_t config = {
       .url = fetch.url,
       .method = HTTP_METHOD_GET,
