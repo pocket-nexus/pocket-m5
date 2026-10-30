@@ -21,6 +21,11 @@ static const char *TAG = "tab5_camera_media";
 #define TAB5_VOLUME_MAX 80U
 /* The second core: the first runs the guest. */
 #define TAB5_WORKER_CORE 1
+/* The camera's capture and QR tasks. The CSI controller allocates its
+ * DW-GDMA interrupt on the core that starts the stream; on the second core
+ * the allocation failed ("dw-gdma: alloc interrupt failed") and the stream
+ * with it (EBUSY), so Pocket Home's scanner stayed black. */
+#define TAB5_CAMERA_CORE 0
 
 static bool camera_ready;
 static bool media_ready;
@@ -71,7 +76,7 @@ void tab5_camera_media_install(JSContext *realm, pocket_runtime *runtime,
     config.start_sensor = start_sensor;
     config.rotation = TAB5_CAMERA_ROTATION;
     config.storage_root = "/pocket";
-    config.worker_core = TAB5_WORKER_CORE;
+    config.worker_core = TAB5_CAMERA_CORE;
     camera_ready = pocketjs_camera_setup(&config) == ESP_OK;
   }
   if (camera_ready)
