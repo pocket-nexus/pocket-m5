@@ -31,5 +31,27 @@ bool clock_wait(uint32_t ms);
  * (flash access), and return when it has finished. */
 void system_run(void (*job)(void *), void *context);
 
-/* qjs.c: install the system namespaces into the guest's realm. */
-esp_err_t system_qjs_install(JSContext *ctx);
+/* fetch.c: one download at a time into `path`, hashed with SHA-256 as it
+ * is written. fetch_poll answers FETCH_RUNNING, FETCH_DONE (`sha256` holds
+ * the file's hash) or FETCH_FAILED (`error` says why); `total` is the
+ * declared length, 0 while unknown. fetch_end stops a running download or
+ * releases a finished one, and returns once the file is closed. */
+#define FETCH_RUNNING 0
+#define FETCH_DONE 1
+#define FETCH_FAILED (-1)
+bool fetch_start(const char *url, const char *path, uint32_t max_bytes);
+int32_t fetch_poll(uint32_t *received, uint32_t *total, uint8_t sha256[32],
+                   char *error, size_t error_capacity);
+void fetch_end(void);
+
+/* install.c: `globalThis.installer`, on the system task. install_uri
+ * answers a request id or -1; install_poll the events since the last call
+ * as one JSON array, or NULL. */
+int32_t install_uri(const char *uri, size_t length);
+const char *install_poll(void);
+void install_pump(void);
+void install_reset_guest(void);
+
+/* qjs.c: install the system namespaces into the guest's realm; the
+ * launcher also gets `installer`. */
+esp_err_t system_qjs_install(JSContext *ctx, bool launcher);

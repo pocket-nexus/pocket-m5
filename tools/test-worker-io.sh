@@ -24,4 +24,9 @@ ${CC:-cc} -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
   platforms/esp-idf/pocket_display_esp_dpi_flip/src/display.c \
   -o "$validation_dir/display-dpi"
 "$validation_dir/display-dpi"
+${CC:-cc} -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
+  -I programs/m5stack-tab5/components/pocket_system/src tests/install-uri.c \
+  programs/m5stack-tab5/components/pocket_system/src/install_uri.c \
+  -o "$validation_dir/install-uri"
+"$validation_dir/install-uri"
 bun test tests/*.test.ts
