@@ -19,6 +19,7 @@
 #include "esp_heap_caps.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "esp_tls_errors.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -32,6 +33,12 @@
 #define FETCH_REDIRECTS 3
 /* One connect or read waits at most this long; a stop lands within it. */
 #define FETCH_TIMEOUT_MS 10000
+/* A download fails after this long without a byte. A read that times out
+ * is tried again until then: a slow path (a Tab5 in mainland China to
+ * Cloudflare ran at a few KB/s) has pauses longer than one read. */
+#define FETCH_STALL_US (30LL * 1000 * 1000)
+/* Bytes between two progress lines in the log. */
+#define FETCH_LOG_BYTES (128U * 1024U)
 #define FETCH_CLOCK_MS 15000U
 
 static const char *TAG = "pocket_fetch";
@@ -149,17 +156,30 @@ static bool download(FILE *file, uint8_t *chunk) {
   publish(0, total);
   Sha256 hash;
   sha256_init(&hash);
-  uint32_t received = 0;
+  uint32_t received = 0, logged = 0;
+  const int64_t started = esp_timer_get_time();
+  int64_t heard = started;
   for (;;) {
     if (fetch.stop) {
       fail("install: stopped");
       goto done;
     }
     const int n = esp_http_client_read(client, (char *)chunk, FETCH_CHUNK);
+    if (n == -ESP_ERR_HTTP_EAGAIN) {
+      if (esp_timer_get_time() - heard > FETCH_STALL_US) {
+        fail("install: the server stopped sending after %u bytes",
+             (unsigned)received);
+        goto done;
+      }
+      continue;
+    }
     if (n < 0) {
-      fail("install: the connection closed during the download");
+      fail("install: the connection closed during the download (%d after "
+           "%u bytes)",
+           n, (unsigned)received);
       goto done;
     }
+    heard = esp_timer_get_time();
     if (n == 0) {
       if (!esp_http_client_is_complete_data_received(client)) {
         fail("install: the download ended early");
@@ -179,6 +199,13 @@ static bool download(FILE *file, uint8_t *chunk) {
     sha256_update(&hash, chunk, (size_t)n);
     received += (uint32_t)n;
     publish(received, total);
+    if (received - logged >= FETCH_LOG_BYTES) {
+      logged = received;
+      const int64_t ms = (heard - started) / 1000;
+      ESP_LOGI(TAG, "%u of %u bytes, %lld ms, %lld KB/s", (unsigned)received,
+               (unsigned)total, (long long)ms,
+               ms > 0 ? (long long)received / ms : 0LL);
+    }
   }
   if (received == 0) {
     fail("install: the server sent an empty file");
@@ -187,7 +214,8 @@ static bool download(FILE *file, uint8_t *chunk) {
   xSemaphoreTake(fetch.lock, portMAX_DELAY);
   sha256_final(&hash, fetch.sha256);
   xSemaphoreGive(fetch.lock);
-  ESP_LOGI(TAG, "%.120s: %u bytes", fetch.url, (unsigned)received);
+  ESP_LOGI(TAG, "%.120s: %u bytes in %lld ms", fetch.url, (unsigned)received,
+           (long long)((esp_timer_get_time() - started) / 1000));
   ok = true;
 done:
   esp_http_client_cleanup(client);
