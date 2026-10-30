@@ -118,6 +118,7 @@ void pocketjs_camera_config_defaults(pocketjs_camera_config_t *config) {
         .struct_size = sizeof(*config),
         .storage_root = "/pocket",
         .worker_core = tskNO_AFFINITY,
+        .stream_core = tskNO_AFFINITY,
     };
   }
 }
@@ -293,6 +294,45 @@ static bool start_stream(int fd, uint32_t *width, uint32_t *height,
   return ioctl(fd, VIDIOC_STREAMON, &type) == 0;
 }
 
+/* start_stream on board.stream_core, for the capture task on another. */
+typedef struct {
+  int fd;
+  uint32_t width, height;
+  uint8_t **buffers;
+  size_t *lengths;
+  bool started;
+  SemaphoreHandle_t done;
+} stream_start_t;
+
+static void stream_starter(void *argument) {
+  stream_start_t *start = argument;
+  start->started = start_stream(start->fd, &start->width, &start->height,
+                                start->buffers, start->lengths);
+  xSemaphoreGive(start->done);
+  vTaskDeleteWithCaps(NULL);
+}
+
+static bool start_stream_on(int core, int fd, uint32_t *width, uint32_t *height,
+                            uint8_t **buffers, size_t *lengths) {
+  if (core == tskNO_AFFINITY || core == (int)xPortGetCoreID())
+    return start_stream(fd, width, height, buffers, lengths);
+  stream_start_t start = {.fd = fd, .buffers = buffers, .lengths = lengths};
+  start.done = xSemaphoreCreateBinary();
+  if (start.done == NULL)
+    return false;
+  if (xTaskCreatePinnedToCoreWithCaps(stream_starter, "pocketjs_stream",
+                                      CAPTURE_STACK, &start, 4, NULL, core,
+                                      MALLOC_CAP_SPIRAM) != pdPASS) {
+    vSemaphoreDelete(start.done);
+    return false;
+  }
+  xSemaphoreTake(start.done, portMAX_DELAY);
+  vSemaphoreDelete(start.done);
+  *width = start.width;
+  *height = start.height;
+  return start.started;
+}
+
 static void capture_run(void *argument) {
   (void)argument;
   ppa_client_handle_t client = NULL;
@@ -306,7 +346,8 @@ static void capture_run(void *argument) {
   uint32_t width = 0, height = 0;
   transform_t preview;
   if (fd < 0 || ppa_register_client(&client_config, &client) != ESP_OK ||
-      !start_stream(fd, &width, &height, buffers, lengths) ||
+      !start_stream_on(board.stream_core, fd, &width, &height, buffers,
+                       lengths) ||
       !plan_transform(width, height, CAMERA_WIDTH, CAMERA_HEIGHT, &preview)) {
     snprintf(error, sizeof error, "the camera did not start (%s %lux%lu)",
              board.device, (unsigned long)width, (unsigned long)height);

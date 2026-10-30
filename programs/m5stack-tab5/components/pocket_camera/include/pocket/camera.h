@@ -29,6 +29,9 @@ typedef struct {
   const char *storage_root;
   /** Core for the capture, QR decoder and photo worker tasks. */
   int worker_core;
+  /* The core that starts the stream: the CSI controller allocates its
+   * DW-GDMA interrupt there. tskNO_AFFINITY: the capture task's own. */
+  int stream_core;
 } pocketjs_camera_config_t;
 
 void pocketjs_camera_config_defaults(pocketjs_camera_config_t *config);
