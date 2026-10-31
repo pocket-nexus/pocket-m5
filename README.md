@@ -61,12 +61,20 @@ into `.pocket-build/apps/`.
 
 ## Pinned dependencies
 
-`third_party/pocketjs` is pinned to a commit on pocketjs `main` and tracks
-that branch. `main` carries the platform, engine and framework changes of
-pocket-nexus/pocketjs#616 that `programs/m5stack-tab5` needs, merged through
-pocket-nexus/pocketjs#617, and the worker runtime in `engine/worker` that
-`pocket_worker_esp` builds, merged through pocket-nexus/pocketjs#623. The
-driver contracts and directory layout come from pocket-nexus/pocketjs#603.
+`third_party/pocketjs` is pinned to the `tab5-device-66e39a0f` branch: five
+commits on pocketjs `main` at `66e39a0f` that add the `system.device` and
+`audio.capture` modules, the Wi-Fi access point ops, the package feature
+bits the ESP-IDF archive reports for them and the I2C probe opcode, and
+re-arm the worker scheduler's host timer after a timer fact. The same
+commits, rebased onto pocketjs's host-facts admission
+(pocket-nexus/pocketjs#631), are under review as pocket-nexus/pocketjs#635;
+this repository and pocket-shell still use the profile-hash admission that
+#631 replaced, so the pin stays on the pre-rebase branch. `main` carries the
+platform, engine and framework changes of pocket-nexus/pocketjs#616 that
+`programs/m5stack-tab5` needs, merged through pocket-nexus/pocketjs#617, and
+the worker runtime in `engine/worker` that `pocket_worker_esp` builds,
+merged through pocket-nexus/pocketjs#623. The driver contracts and directory
+layout come from pocket-nexus/pocketjs#603.
 
 `third_party/pocket-shell` is pinned to a commit on pocket-shell `main`.
 The firmware compiles `shells/3ds/home` from it with the pinned pocketjs.
