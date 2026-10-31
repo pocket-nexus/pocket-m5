@@ -20,6 +20,7 @@
 #include "pocket/device.h"
 
 #include <dirent.h>
+#include <inttypes.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -77,6 +78,12 @@ static const switch_t SWITCHES[] = {
 #define SWITCH_COUNT (sizeof SWITCHES / sizeof SWITCHES[0])
 
 #define POWER_OFF_PIN 4
+/* SWITCHES[0], on at boot only with a battery (battery_present). */
+#define CHARGE_SWITCH 0
+/* The battery monitor (INA226) and the least bus voltage of a 2S pack. */
+#define INA226_ADDRESS 0x41
+#define INA226_BUS_VOLTAGE 0x02
+#define BATTERY_MIN_MV 5000U
 #define USB_C_DETECT_PIN 6
 #define HEADPHONE_DETECT_PIN 7
 
@@ -191,6 +198,36 @@ static esp_err_t drive_switch(size_t index, bool on) {
   if (err == ESP_OK)
     device.switch_on[index] = on;
   return err;
+}
+
+/* Whether a battery holds up the INA226's bus, read before charging is
+ * enabled. Without a battery an enabled charger cycles its output between
+ * about 8.4 V and 4.0 V (it probes for a pack every few seconds); with
+ * charging off the node falls to about 1.9 V within 0.5 s. The expander
+ * reset at BSP init turned charging off about 2 s before this runs. An
+ * unreadable monitor counts as a battery, the vendor's default. */
+static bool battery_present(void) {
+  const i2c_device_config_t config = {
+      .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+      .device_address = INA226_ADDRESS,
+      .scl_speed_hz = 400000,
+  };
+  i2c_master_dev_handle_t monitor = NULL;
+  if (i2c_master_bus_add_device(bsp_i2c_get_handle(), &config, &monitor) !=
+      ESP_OK)
+    return true;
+  const uint8_t reg = INA226_BUS_VOLTAGE;
+  uint8_t value[2];
+  const esp_err_t err =
+      i2c_master_transmit_receive(monitor, &reg, 1, value, sizeof value, 100);
+  i2c_master_bus_rm_device(monitor);
+  if (err != ESP_OK)
+    return true;
+  /* 1.25 mV per bit, big endian. */
+  const uint32_t millivolts = ((uint32_t)value[0] << 8 | value[1]) * 5U / 4U;
+  ESP_LOGI(TAG, "battery node %" PRIu32 " mV: %s", millivolts,
+           millivolts >= BATTERY_MIN_MV ? "battery" : "no battery");
+  return millivolts >= BATTERY_MIN_MV;
 }
 
 /* The detect inputs of both expanders: bit 8 + n is expander 1's pin n. */
@@ -691,8 +728,10 @@ esp_err_t pocket_device_setup(const pocket_device_config_t *config) {
   device.brightness = device.system_brightness = 100;
   device.expanders[EXP0] = bsp_io_expander_init();
   device.expanders[EXP1] = bsp_io_expander1_init();
+  const bool battery = battery_present();
   for (size_t i = 0; i < SWITCH_COUNT; ++i)
-    if (drive_switch(i, SWITCHES[i].on_default) != ESP_OK)
+    if (drive_switch(i, i == CHARGE_SWITCH ? battery
+                                           : SWITCHES[i].on_default) != ESP_OK)
       ESP_LOGW(TAG, "switch %s did not set", SWITCHES[i].id);
   if (device.expanders[EXP1] != NULL) {
     esp_io_expander_set_dir(device.expanders[EXP1], 1U << USB_C_DETECT_PIN,

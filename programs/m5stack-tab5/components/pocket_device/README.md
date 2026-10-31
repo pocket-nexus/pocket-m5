@@ -26,7 +26,12 @@ USB-C presence is 0x44 P6 and headphone presence 0x43 P7, both inputs; the
 power-off line is 0x44 P4. The pin assignment and the defaults (charging, QC,
 USB-A 5V and EXT 5V on, the internal antenna) follow M5Stack's
 M5Tab5-UserDemo; `pocket_device_setup` applies the defaults at boot through
-the BSP's `esp_io_expander` handles. A PI4IOE5V6408 pin drives only with
+the BSP's `esp_io_expander` handles, except that charging comes on only when
+the INA226 at 0x41 reads at least 5.0 V on the battery node. Without a
+battery an enabled charger cycles its output between about 8.4 V and 4.0 V;
+with charging off the node falls to about 1.9 V within 0.5 s, and the BSP's
+expander reset turned charging off about 2 s before the read. An unreadable
+monitor counts as a battery. A PI4IOE5V6408 pin drives only with
 its direction bit set and its bit in the Output High-Impedance register
 (0x07) clear; the driver's reset leaves 0x07 at 0xFF and `set_dir` does not
 change it, so every switch and the power-off line are set push-pull with
