@@ -23,8 +23,9 @@ pocket-m5/
 │     │                         pocket_device (this program only)
 │     └─ profile.ts             tab5-home: 640x360 auxiliary surface, presented at 2x
 ├─ apps/
-│  └─ worker-http/              worker HTTP check for programs/m5stack-tab5
-├─ tests/                       host tests of the HTTP record and I2C descriptor parsers
+│  ├─ worker-http/              worker HTTP check for programs/m5stack-tab5
+│  └─ tab5-demo/                the Tab5's hardware on one screen (after M5Tab5-UserDemo)
+├─ tests/                       host tests: HTTP record, I2C descriptors, sensor drivers
 ├─ tools/                       pocket CLI wrapper, app packaging, formatter, host tests
 └─ docs/                        repository and worker reference
 ```

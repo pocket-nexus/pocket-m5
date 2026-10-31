@@ -74,7 +74,8 @@ profile lists `runtime.worker`, `net.http`, `io.i2c`, `io.uart`,
 an earlier `tab5-home` must be rebuilt.
 `pocket_worker_esp` requires ESP-IDF 6.2.x. `apps/worker-http` is the HTTP
 device check: embedded with `POCKETJS_TAB5_HOME_PACKAGE` it joins a Wi-Fi
-network and fetches a URL once connected and on each tap.
+network and fetches a URL once connected and on each tap. `apps/tab5-demo`
+exercises the other nodes and services.
 
 A picture smaller than the screen sits between two equal black margins. The
 display moves retained pixels for content that only scrolled

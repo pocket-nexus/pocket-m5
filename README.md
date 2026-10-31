@@ -18,6 +18,8 @@ from [pocket-shell](https://github.com/pocket-nexus/pocket-shell), pinned as
 the `third_party/pocket-shell` submodule; the firmware build compiles Pocket
 Home from it. App workers get an `http` node (`pocket_http_esp`) and `i2c` and
 `uart` nodes (`pocket_io_esp`); see [Worker domain](docs/WORKER.md).
+[`apps/tab5-demo`](apps/tab5-demo/README.md) shows the board's hardware on
+one screen.
 
 ## Requirements
 
