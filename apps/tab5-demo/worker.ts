@@ -8,13 +8,15 @@ import { sleep } from "@pocketjs/framework/worker";
 import { Bmi270 } from "./drivers/bmi270";
 import { Ina226 } from "./drivers/ina226";
 import { Rx8130ce } from "./drivers/rx8130ce";
-import { armMotion, armRtcAlarm, disarmMotion, quietRtc } from "./drivers/wake";
+import { armMotion, armRtcTimer, disarmMotion, quietRtc } from "./drivers/wake";
 import {
   Bus, Command, Driver, RtcSetting, SCAN_BYTES, SENSORS_BYTES, SERIAL_BYTES, SERIAL_PAYLOAD, ScanState,
   SerialKind, Wake, ascii, decodeClock, emptySensors, encodeScan, encodeSensors, type Scan,
 } from "./protocol";
 
 const SYS = "sys", PORTA = "porta", RS485 = "rs485";
+/** The factory demo's "SLEEP 10 SECONDS". */
+const RTC_WAKE_SECONDS = 10;
 const sensors = emptySensors();
 const sensorsChannel = io.channel("sensors");
 const scanChannel = io.channel("scan");
@@ -149,13 +151,8 @@ async function armWake(kind: number, sequence: number): Promise<void> {
   sensors.wake = Wake.none;
   try {
     if (kind === Wake.rtc) {
-      // An alarm that fires before the board is off would hold it on.
-      let remaining = await armRtcAlarm(SYS);
-      if (remaining < 8) {
-        await sleep((remaining + 1) * 1_000_000);
-        remaining = await armRtcAlarm(SYS);
-      }
-      console.log(`RTC alarm in ${remaining} s`);
+      await armRtcTimer(SYS, RTC_WAKE_SECONDS);
+      console.log(`RTC wake-up timer: ${RTC_WAKE_SECONDS} s`);
     } else {
       await armMotion(SYS);
       console.log("motion wake armed");

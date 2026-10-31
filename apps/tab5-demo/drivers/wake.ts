@@ -6,8 +6,10 @@ import { settle, sleep } from "@pocketjs/framework/worker";
 // /IRQ and the BMI270's INT1 reach the board's power controller.
 
 const RTC = 0x32, IMU = 0x68;
-/* RX8130CE (Epson ETM50E-10 §13.2): FLAG write-zero-to-clear, CTRL0 enables. */
-const FLAG = 0x1d, CTRL0 = 0x1e, CTRL1 = 0x1f;
+/* RX8130CE (Epson ETM50E-10 §13.2): FLAG write-zero-to-clear, CTRL0 enables,
+ * EXTENSION holds the wake-up timer's enable (TE) and source (TSEL). */
+const EXTENSION = 0x1c, FLAG = 0x1d, CTRL0 = 0x1e, CTRL1 = 0x1f;
+const TE = 0x10, TSEL_MASK = 0x07, TSEL_1HZ = 0x02;
 const AF = 0x08, TF = 0x10, UF = 0x20, AIE = 0x08, TIE = 0x10, UIE = 0x20;
 /* Writing one keeps a flag; bit 6 is reserved and VBFF read-only. */
 const KEEP_FLAGS = 0xbf;
@@ -27,28 +29,30 @@ async function withDevice<T>(node: string, address: number, body: (device: I2CDe
   try { return await body(device); } finally { device.close(); }
 }
 
-/** Boot state: no alarm, timer or update interrupt holds /IRQ, and the
- *  backup battery charges and takes over when the supply drops, as the
- *  vendor firmware sets them. */
+/** Boot state: no alarm, timer or update interrupt holds /IRQ, the wake-up
+ *  timer is stopped, and the backup battery charges and takes over when the
+ *  supply drops, as the vendor firmware sets them. */
 export async function quietRtc(node: string): Promise<void> {
   await withDevice(node, RTC, async device => {
     const [control] = await run(device, [read(CTRL0, [bytes(1)])]);
     await run(device, [write(CTRL0, control! & ~(AIE | TIE | UIE)), write(FLAG, KEEP_FLAGS & ~(AF | TF | UF))]);
+    const [extension] = await run(device, [read(EXTENSION, [bytes(1)])]);
+    if (extension! & TE) await run(device, [write(EXTENSION, extension! & ~TE)]);
     const [backup] = await run(device, [read(CTRL1, [bytes(1)])]);
     if ((backup! & BACKUP) !== BACKUP) await run(device, [write(CTRL1, backup! | BACKUP)]);
   });
 }
 
-/** Arm the alarm with every field ignored: it fires when the seconds next
- *  reach 00 (§14.4). Returns the seconds until it fires. */
-export async function armRtcAlarm(node: string): Promise<number> {
-  return withDevice(node, RTC, async device => {
+/** Arm the wake-up timer (§14.5): stop it, load `seconds` into the 16-bit
+ *  counter, count at 1 Hz, start it and let its flag drive /IRQ. */
+export async function armRtcTimer(node: string, seconds: number): Promise<void> {
+  await withDevice(node, RTC, async device => {
+    const [extension] = await run(device, [read(EXTENSION, [bytes(1)])]);
+    const stopped = extension! & ~TE;
+    await run(device, [write(EXTENSION, stopped), write(0x1a, seconds & 0xff, seconds >> 8)]);
     const [control] = await run(device, [read(CTRL0, [bytes(1)])]);
-    await run(device, [write(CTRL0, control! & ~(AIE | UIE)), write(0x17, 0x80, 0x80, 0x80)]);
-    await run(device, [write(FLAG, KEEP_FLAGS & ~AF), write(CTRL0, (control! & ~UIE) | AIE)]);
-    const [seconds] = await run(device, [read(0x10, [bytes(1)])]);
-    const second = (seconds! >> 4 & 7) * 10 + (seconds! & 15);
-    return 60 - second;
+    await run(device, [write(FLAG, KEEP_FLAGS & ~TF), write(CTRL0, (control! & ~UIE) | TIE)]);
+    await run(device, [write(EXTENSION, (stopped & ~TSEL_MASK) | TSEL_1HZ | TE)]);
   });
 }
 

@@ -1,32 +1,26 @@
-// Shared pieces of the Tab5 demo's interface: absolutely placed boxes,
-// labels, buttons and toggles on the 640x360 auxiliary surface, the modal
-// window frame and the toast line.
-import { Show, type JSX } from "solid-js";
-import { Text, View } from "@pocketjs/framework/components";
-
-export const C = {
-  bg: "#0f1418",
-  panel: "#1b2228",
-  raised: "#27313a",
-  line: "#34404a",
-  text: "#edf2f4",
-  muted: "#93a3ad",
-  dim: "#5d6b75",
-  blue: "#3b82f6",
-  green: "#22c55e",
-  amber: "#f59e0b",
-  red: "#ef4444",
-  rose: "#f43f5e",
-  violet: "#8b5cf6",
-  teal: "#14b8a6",
-  scrim: "#000000b0",
-} as const;
+// Shared pieces of the Tab5 demo's interface, after the M5Tab5-UserDemo
+// factory firmware: its screen is 1280x720 and places everything by offsets
+// from the centre; this surface is 640x360, so every position and size here
+// is half of the factory value.
+import { For, Show, type JSX } from "solid-js";
+import { animate, jump } from "@pocketjs/framework/animation";
+import { Image, Text, View } from "@pocketjs/framework/components";
+import type { NodeMirror } from "@pocketjs/framework/renderer";
 
 /** Every printable ASCII character, so the baked glyphs cover any SSID,
  *  file name or serial text the demo shows. */
 export const ASCII = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
 
+/** A factory centre offset (1280x720) to a point on this surface. */
+export const X = (cx: number) => 320 + cx / 2;
+export const Y = (cy: number) => 180 + cy / 2;
+
+/** A factory rectangle: centre offset and size, all at 1280x720. */
+export interface Frame { x: number; y: number; w: number; h: number }
+
 export type Size = "2xs" | "xs" | "sm" | "base" | "lg" | "xl" | "2xl";
+/** Line boxes of the baked slots (framework/compiler/tailwind.ts). */
+const LINE: Record<Size, number> = { "2xs": 13, xs: 15, sm: 18, base: 20, lg: 22, xl: 24, "2xl": 29 };
 
 /** Text classes are looked up verbatim, so each size is a whole literal. */
 function textClass(size: Size, bold: boolean): string {
@@ -41,84 +35,151 @@ function textClass(size: Size, bold: boolean): string {
   }
 }
 
-export function Label(props: { x: number; y: number; text: string; size?: Size; color?: string; bold?: boolean; w?: number; center?: boolean }) {
-  return <Text class={textClass(props.size ?? "sm", props.bold ?? false)}
-    style={{ insetL: props.x, insetT: props.y, textColor: props.color ?? C.text, width: props.w, textAlign: props.center ? 1 : 0 }}>
-    {props.text}
-  </Text>;
+/** One line of text anchored as LVGL aligns a label: `x` is its left edge,
+ *  centre or right edge, `y` its vertical centre. A string with newlines
+ *  draws one line per row. */
+export function Txt(props: {
+  x: number; y: number; text: string; size?: Size; color?: string; bold?: boolean;
+  align?: "left" | "center" | "right"; w?: number;
+}) {
+  const size = () => props.size ?? "xs";
+  const width = () => props.w ?? 240;
+  const left = () => props.align === "center" ? props.x - width() / 2 : props.align === "right" ? props.x - width() : props.x;
+  const line = (text: string, top: number) =>
+    <Text class={textClass(size(), props.bold ?? false)} style={{
+      insetL: left(), insetT: top, width: width(),
+      textColor: props.color ?? "#ffffff", textAlign: props.align === "center" ? 1 : props.align === "right" ? 2 : 0,
+    }}>{text}</Text>;
+  // Most labels are one line: one Text node, no list to reconcile.
+  const multiline = () => props.text.includes("\n");
+  return <Show when={multiline()} fallback={line(props.text, props.y - LINE[size()] / 2)}>
+    <For each={props.text.split("\n")}>{(text, index) =>
+      line(text, props.y - (LINE[size()] * props.text.split("\n").length) / 2 + index() * LINE[size()])}
+    </For>
+  </Show>;
 }
 
-export function Box(props: { x: number; y: number; w: number; h: number; color?: string; radius?: number; border?: string; children?: JSX.Element }) {
+function pow2(n: number): number {
+  let p = 1;
+  while (p < n) p <<= 1;
+  return p;
+}
+
+/** A static image at its top-left corner, `w` x `h` on this surface. A pak
+ *  image has power-of-two sides (at most 512), so each picture in art/ sits
+ *  at the top left of a padded texture and a clip shows its own size. */
+export function Img(props: { src: string; x: number; y: number; w: number; h: number; show?: boolean }) {
+  return <Show when={props.show ?? true}>
+    <View class="absolute overflow-hidden" style={{ insetL: props.x, insetT: props.y, width: props.w, height: props.h }}>
+      <Image class="absolute left-0 top-0" src={props.src} style={{ width: pow2(Math.ceil(props.w)), height: pow2(Math.ceil(props.h)) }} />
+    </View>
+  </Show>;
+}
+
+/** The factory launcher picture, 640x360 in four tiles. */
+export function Background() {
+  return <>
+    <Img src="art/bg_00.png" x={0} y={0} w={512} h={256} />
+    <Img src="art/bg_10.png" x={512} y={0} w={128} h={256} />
+    <Img src="art/bg_01.png" x={0} y={256} w={512} h={104} />
+    <Img src="art/bg_11.png" x={512} y={256} w={128} h={104} />
+  </>;
+}
+
+/** A transparent press area centred at (x, y): the factory demo's buttons
+ *  are drawn in its background picture. Pressing darkens it. */
+export function Hit(props: { x: number; y: number; w: number; h: number; radius?: number; onPress: () => void }) {
+  return <View focusable onPress={props.onPress} class="absolute active:bg-[#00000040]"
+    style={{ insetL: props.x - props.w / 2, insetT: props.y - props.h / 2, width: props.w, height: props.h, radius: props.radius ?? 8 }} />;
+}
+
+/** A filled button centred at (x, y) with a centred label. */
+export function Btn(props: {
+  x: number; y: number; w: number; h: number; label: string; onPress: () => void;
+  color?: string; textColor?: string; size?: Size; radius?: number; disabled?: boolean;
+}) {
+  return <View focusable onPress={() => { if (!props.disabled) props.onPress(); }} class="absolute active:opacity-60"
+    style={{ insetL: props.x - props.w / 2, insetT: props.y - props.h / 2, width: props.w, height: props.h,
+      radius: props.radius ?? 8, bgColor: props.color ?? "#616161", opacity: props.disabled ? 0.45 : 1 }}>
+    <Txt x={props.w / 2} y={props.h / 2} w={props.w} align="center" text={props.label} size={props.size ?? "xs"}
+      color={props.textColor ?? "#ffffff"} />
+  </View>;
+}
+
+/** A filled rectangle at its top-left corner. */
+export function Box(props: { x: number; y: number; w: number; h: number; color: string; radius?: number; border?: string; children?: JSX.Element }) {
   return <View class="absolute" style={{
-    insetL: props.x, insetT: props.y, width: props.w, height: props.h, bgColor: props.color ?? C.panel,
-    radius: props.radius ?? 8, borderColor: props.border, borderWidth: props.border ? 1 : 0,
+    insetL: props.x, insetT: props.y, width: props.w, height: props.h, bgColor: props.color,
+    radius: props.radius ?? 0, borderColor: props.border, borderWidth: props.border ? 1 : 0,
   }}>{props.children}</View>;
 }
 
-/** A titled panel; children are placed relative to it. */
-export function Panel(props: { x: number; y: number; w: number; h: number; title: string; accent?: string; children?: JSX.Element }) {
-  return <Box x={props.x} y={props.y} w={props.w} h={props.h}>
-    <View class="absolute" style={{ insetL: 0, insetT: 8, width: 3, height: 14, bgColor: props.accent ?? C.blue, radius: 2 }} />
-    <Label x={10} y={6} text={props.title} size="xs" color={C.muted} bold />
-    {props.children}
-  </Box>;
+export interface WindowStyle {
+  title?: string;
+  bg?: string;
+  border?: string;
+  titleColor?: string;
+  /** The red dot at the top right that closes the window. */
+  closeDot?: boolean;
+  /** A press outside the window closes it (the factory default). */
+  bgClose?: boolean;
 }
 
-export function Button(props: {
-  x: number; y: number; w: number; h: number; label: string; onPress: () => void;
-  color?: string; textColor?: string; size?: Size; disabled?: boolean;
-}) {
-  return <View focusable onPress={() => { if (!props.disabled) props.onPress(); }}
-    class="absolute flex-col items-center justify-center active:opacity-60"
-    style={{ insetL: props.x, insetT: props.y, width: props.w, height: props.h, radius: 6,
-      bgColor: props.disabled ? C.panel : props.color ?? C.raised, opacity: props.disabled ? 0.5 : 1 }}>
-    <Text class={props.size === "lg" ? "text-lg font-bold" : props.size === "xs" ? "text-xs" : props.size === "base" ? "text-base" : "text-sm"}
-      style={{ textColor: props.textColor ?? C.text }}>{props.label}</Text>
-  </View>;
+/** Where a window's children go: a factory centre offset inside the window
+ *  to a top-left corner on this surface, relative to the window. */
+export function inside(frame: Frame, cx: number, cy: number, w = 0, h = 0): { x: number; y: number } {
+  return { x: frame.w / 4 + cx / 2 - w / 4, y: frame.h / 4 + cy / 2 - h / 4 };
 }
 
-/** A labelled switch: the knob slides right and the track lights when on. */
-export function Toggle(props: { x: number; y: number; w: number; label: string; on: boolean; onPress: () => void; accent?: string }) {
-  return <View focusable onPress={props.onPress} class="absolute active:opacity-60"
-    style={{ insetL: props.x, insetT: props.y, width: props.w, height: 26 }}>
-    <Label x={0} y={5} text={props.label} size="xs" color={C.text} />
-    <View class="absolute" style={{ insetL: props.w - 40, insetT: 4, width: 40, height: 18, radius: 9,
-      bgColor: props.on ? props.accent ?? C.green : C.line }}>
-      <View class="absolute" style={{ insetL: props.on ? 24 : 2, insetT: 2, width: 14, height: 14, radius: 7, bgColor: C.text }} />
-    </View>
-  </View>;
-}
-
-/** A presence dot and its name. */
-export function Indicator(props: { x: number; y: number; label: string; on: boolean; accent?: string }) {
+/** The factory window: a rounded panel (radius 24, 1 px border, #232323)
+ *  with a centred title and an optional red close dot, grown from the
+ *  button that opened it. Children are placed relative to the window. */
+export function Window(props: WindowStyle & { frame: Frame; from?: Frame; onClose: () => void; children?: JSX.Element }) {
+  const w = props.frame.w / 2, h = props.frame.h / 2;
+  const left = X(props.frame.x) - w / 2, top = Y(props.frame.y) - h / 2;
+  const grow = (node: NodeMirror) => {
+    const from = props.from;
+    if (!from) return;
+    jump(node, "translateX", Math.round(X(from.x) - X(props.frame.x)));
+    jump(node, "translateY", Math.round(Y(from.y) - Y(props.frame.y)));
+    jump(node, "scale", Math.max(0.1, Math.min(from.w / props.frame.w, from.h / props.frame.h)));
+    jump(node, "opacity", 0);
+    animate(node, "translateX", 0, { dur: 280, easing: "out" });
+    animate(node, "translateY", 0, { dur: 280, easing: "out" });
+    animate(node, "scale", 1, { dur: 280, easing: "out" });
+    animate(node, "opacity", 1, { dur: 200, easing: "out" });
+  };
   return <>
-    <View class="absolute" style={{ insetL: props.x, insetT: props.y + 4, width: 10, height: 10, radius: 5,
-      bgColor: props.on ? props.accent ?? C.green : C.line }} />
-    <Label x={props.x + 15} y={props.y} text={props.label} size="xs" color={props.on ? C.text : C.dim} />
-  </>;
-}
-
-export const WINDOW = { x: 36, y: 18, w: 568, h: 326 } as const;
-
-/** The modal frame every tool window shares: a scrim over the dashboard, a
- *  title and a close button. Children are placed relative to the frame. */
-export function Window(props: { title: string; accent?: string; onClose: () => void; children?: JSX.Element }) {
-  return <>
-    <View class="absolute" focusable onPress={() => {}} style={{ insetL: 0, insetT: 0, width: 640, height: 360, bgColor: C.scrim }} />
-    <Box x={WINDOW.x} y={WINDOW.y} w={WINDOW.w} h={WINDOW.h} color={C.bg} radius={12} border={props.accent ?? C.line}>
-      <Label x={16} y={10} text={props.title} size="base" bold />
-      <Button x={WINDOW.w - 76} y={8} w={64} h={26} label="Close" onPress={props.onClose} />
+    <View focusable class="absolute" onPress={() => { if (props.bgClose ?? true) props.onClose(); }}
+      style={{ insetL: 0, insetT: 0, width: 640, height: 360 }} />
+    <View ref={grow} focusable onPress={() => {}} class="absolute overflow-hidden" style={{
+      insetL: left, insetT: top, width: w, height: h, radius: 12, bgColor: props.bg ?? "#232323",
+      borderColor: props.border ?? "#000000", borderWidth: 1,
+    }}>
+      <Show when={props.title}>
+        <Txt x={w / 2} y={16} w={w} align="center" text={props.title ?? ""} size="xs" color={props.titleColor ?? "#d8d8d8"} />
+      </Show>
       {props.children}
-    </Box>
+      <Show when={props.closeDot}>
+        <View class="absolute" style={{ insetL: w - 20, insetT: 8, width: 10, height: 10, radius: 5, bgColor: "#ff5f57" }} />
+        <View focusable onPress={props.onClose} class="absolute" style={{ insetL: w - 40, insetT: 0, width: 40, height: 32 }} />
+      </Show>
+    </View>
   </>;
 }
 
-/** One line at the top centre for two seconds. */
-export function Toast(props: { text: string | undefined; color?: string }) {
-  return <Show when={props.text}>
-    <Box x={170} y={4} w={300} h={24} color={props.color ?? C.raised} radius={12}>
-      <Label x={0} y={4} w={300} text={props.text ?? ""} size="xs" center />
-    </Box>
+/** The factory toast: dark, rounded, at the top left of centre; a press
+ *  dismisses it. */
+export function Toast(props: { text: string | undefined; onDismiss: () => void }) {
+  const drop = (node: NodeMirror) => {
+    jump(node, "translateY", -60);
+    animate(node, "translateY", 0, { dur: 320, easing: "out" });
+  };
+  return <Show when={props.text} keyed>{text =>
+    <View ref={drop} focusable onPress={props.onDismiss} class="absolute"
+      style={{ insetL: 22, insetT: 8, width: 320, height: 40, radius: 12, bgColor: "#383838", borderColor: "#222222", borderWidth: 1 }}>
+      <Txt x={160} y={20} w={300} align="center" text={text} size="xs" color="#f4f3f3" />
+    </View>}
   </Show>;
 }
 

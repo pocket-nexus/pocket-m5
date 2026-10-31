@@ -21,9 +21,15 @@ const [toast, setToast] = createSignal<string>();
 export { device, scan, sensors, toast, wifi };
 
 let toastFrames = 0;
+/** A toast for two seconds, as the factory firmware shows one. */
 export function notify(text: string): void {
   setToast(text);
   toastFrames = 60;
+}
+
+export function dismissToast(): void {
+  setToast(undefined);
+  toastFrames = 0;
 }
 
 let sequence = 0;
