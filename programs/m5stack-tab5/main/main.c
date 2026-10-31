@@ -55,6 +55,7 @@
 #include "pocketjs/esp32p4_ppa_lanes.h"
 #include "pocketjs/esp32p4_ppa_status.h"
 #include "pocketjs_package_app.h"
+#include "tab5_bundled.h"
 #include "tab5_camera_media.h"
 #include "tab5_keyboard.h"
 
@@ -1021,6 +1022,8 @@ static const char *start_system(void) {
            on_card ? "microSD card" : "flash partition", root,
            esp_err_to_name(result));
   ESP_ERROR_CHECK(result);
+  size_t bundled_count = 0;
+  const pocketjs_system_bundled_t *bundled = tab5_bundled(&bundled_count);
   const pocketjs_system_config_t config = {
       .struct_size = sizeof(config),
       .target = pocket_profile.id,
@@ -1028,6 +1031,8 @@ static const char *start_system(void) {
       .profile_hash = pocket_profile.profile_hash,
       .launcher = pocketjs_package_app.data,
       .launcher_size = pocketjs_package_app.size,
+      .bundled = bundled,
+      .bundled_count = bundled_count,
       .root = root,
       .device_name = "M5Stack Tab5",
       .device_model = "M5Stack Tab5",

@@ -48,11 +48,12 @@ idf.py -p <port> flash monitor
 The build does not use pocket-shell's own `vendor/pocketjs` submodule, so the
 command above initializes the two submodules without `--recursive`.
 
-Pair the Tab5 with a Mac in Pocket Home's Settings; the applets install from
-the Mac's catalog (pocket-shell's `bun run offer` with Pocket Companion
-running). The home ball returns to Pocket Home. `bun run app build
-<pocket.json>` compiles an app of this repository for the firmware's profile
-into `.pocket-build/apps/`.
+The firmware embeds this repository's apps (`apps/tab5-demo`,
+`apps/worker-http`) and installs them at boot, so Pocket Home lists them
+without a companion; applets from a paired Mac's catalog (pocket-shell's
+`bun run offer` with Pocket Companion running) install beside them. The home
+ball returns to Pocket Home. `bun run app build <pocket.json>` compiles an
+app of this repository for the firmware's profile into `.pocket-build/apps/`.
 
 ## Documentation
 

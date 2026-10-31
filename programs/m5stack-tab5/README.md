@@ -23,8 +23,12 @@ each app's `data.fs` tree, the Wi-Fi radio on the ESP32-C6 (esp_hosted) and
 the wall clock from SNTP. The build compiles Pocket Home from the
 pocket-shell submodule against `home.runtime-config.ts`, embeds it as the
 launcher and boots one runtime per app; SELECT from the home control returns
-to the launcher. `-DPOCKETJS_TAB5_HOME_PACKAGE=<package.pocket>` embeds a
-package compiled against the same profile instead. The
+to the launcher. The build also compiles the apps that
+`POCKETJS_TAB5_BUNDLED_APPS` lists (default `apps/tab5-demo;apps/worker-http`)
+and embeds them; `pocketjs_system_start` writes each into its store slot when
+the slot holds no package or one with another hash, so they are installed
+apps. `-DPOCKETJS_TAB5_HOME_PACKAGE=<package.pocket>` embeds a package
+compiled against the same profile in place of Pocket Home. The
 primary surface of the profile is laid out into a PSRAM buffer that nothing
 scans out. `pocket_idf_package_open` (the IDF archive) admits a stored package
 for the profile before the runtime boots it. `components/pocket_camera` serves
@@ -73,8 +77,8 @@ profile lists `runtime.worker`, `net.http`, `io.i2c`, `io.uart`,
 `audio.pcm`, `audio.capture` and `system.device`, so packages built against
 an earlier `tab5-home` must be rebuilt.
 `pocket_worker_esp` requires ESP-IDF 6.2.x. `apps/worker-http` is the HTTP
-device check: embedded with `POCKETJS_TAB5_HOME_PACKAGE` it joins a Wi-Fi
-network and fetches a URL once connected and on each tap. `apps/tab5-demo`
+device check: it joins a Wi-Fi network and fetches a URL once connected and
+on each tap. `apps/tab5-demo`
 exercises the other nodes and services.
 
 A picture smaller than the screen sits between two equal black margins. The
@@ -131,8 +135,10 @@ the `riscv32imafc-unknown-none-elf` target. Pocket Home compiles with the
 pinned `third_party/pocketjs`, not with pocket-shell's own `vendor/pocketjs`,
 which the build does not need; its typecheck inherits
 `shells/3ds/tsconfig.json`, whose `bun-types` comes from the root
-`package.json`. The image with Pocket Home is 4.1 MiB of the 8 MiB `factory`
-partition. The log reports the frame rate every five seconds.
+`package.json`. The image with Pocket Home and the two bundled apps is
+6.1 MiB of the 8 MiB `factory` partition (Pocket Home alone 4.1 MiB); on
+first boot the card takes 3.1 s to store the 1.6 MiB demo and 0.6 s for
+`worker-http`. `-DPOCKETJS_TAB5_BUNDLED_APPS=` builds without them. The log reports the frame rate every five seconds.
 
 The applets install from a paired Mac's catalog. pocket-shell's
 `bun run tab5` and `bun run offer` compile them against this program's
