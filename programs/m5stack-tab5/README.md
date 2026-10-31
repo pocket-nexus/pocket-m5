@@ -31,7 +31,10 @@ for the profile before the runtime boots it. `components/pocket_camera` serves
 `globalThis.camera` (the SC202CS on MIPI-CSI: a 320x240 preview at 15 fps,
 QR decoding, JPEG stills on the card) and `components/pocket_media` serves
 `globalThis.media` (the companion's stream on the ES8388 speaker) to a guest
-whose plan declares those capabilities.
+whose plan declares those capabilities. The camera's capture task runs on
+core 1 and opens the video device from a task on core 0: the CSI controller
+takes a DW-GDMA channel interrupt, and the DPI panel holds the DW-GDMA source
+on core 0 (a shared source routes to one core).
 
 A UI realm has no network module. An app whose package carries a worker
 domain (`domains.worker`, package section 8) gets its own worker runtime
