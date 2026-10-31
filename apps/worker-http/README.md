@@ -12,10 +12,9 @@ snapshot. The worker prints each headers record and error fact on the serial
 console.
 
 ```sh
-bun tools/app.ts build apps/worker-http/pocket.json \
-  --runtime-config programs/m5stack-tab5/home.runtime-config.ts
+bun run app build apps/worker-http/pocket.json
 idf.py -C programs/m5stack-tab5 -DPOCKETJS_TAB5_APP=home \
-  -DPOCKETJS_TAB5_HOME_PACKAGE=$PWD/.pocket-build/apps/tab5/worker-http.pocket build
+  -DPOCKETJS_TAB5_HOME_PACKAGE=$PWD/.pocket-build/apps/worker-http.pocket build
 ```
 
 Embedded as the home package it runs in place of Pocket Home. The baked

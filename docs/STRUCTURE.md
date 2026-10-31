@@ -11,55 +11,42 @@ against.
 pocket-m5/
 ├─ third_party/pocketjs/        PocketJS checkout pinned to a commit (submodule)
 ├─ platforms/esp-idf/           ESP-IDF components owned by this repository
-│  ├─ m5_bsp_tab5/              Tab5 board: I2C, expanders, rails, panel, touch, SD
-│  ├─ pocket_display_esp_dpi_flip/   display output over a double-buffered DPI panel
-│  ├─ pocket_input_esp_touch/   multi-contact input source over esp_lcd_touch
-│  ├─ pocket_app_host/          package catalog, install inbox, guest switching
+│  ├─ pocket_worker_esp/        FreeRTOS owner of the PocketJS worker core
 │  └─ pocket_http_esp/          worker http node over esp_http_client
 ├─ programs/
-│  ├─ tab5/                     IDF project: main.c, runtime config, profile, sdkconfig, partitions
-│  │  └─ profile.ts             m5stack-tab5: 720x1280 physical, 360x640 logical, density 2
 │  └─ m5stack-tab5/             Hero, Clear and Pocket Home firmware (from pocketjs#616)
 │     ├─ components/            pocket_system, pocket_camera, pocket_media (this program only)
 │     ├─ profiles/              tab5-hero, tab5-clear, tab5-home
 │     └─ apps/                  Tab5 manifests of pocketjs apps/hero and apps/clear
 ├─ apps/
-│  ├─ home/                     launcher embedded in the firmware
-│  ├─ hello/                    installable sample
 │  └─ worker-http/              worker HTTP check for programs/m5stack-tab5
-├─ tools/                       pocket CLI wrapper, app packaging, formatter
-└─ docs/                        board and app-host reference
+├─ tests/                       host test of the HTTP record parser
+├─ tools/                       pocket CLI wrapper, app packaging, formatter, host tests
+└─ docs/                        repository and worker reference
 ```
 
 ## Ownership
 
-**Board support is per board and has no PocketJS dependency.** `m5_bsp_tab5`
-brings up the hardware and returns esp_lcd and esp_lcd_touch handles. A second
-board adds `platforms/esp-idf/m5_bsp_<board>/`.
+**PocketJS adapters are board-independent.** `pocket_worker_esp` and
+`pocket_http_esp` implement the worker host and its `http` node against
+ESP-IDF APIs. They take their configuration from the program, not from a
+board. A board support component for one board would go in
+`platforms/esp-idf/m5_bsp_<board>/`.
 
-**PocketJS adapters are board-independent.** `pocket_display_esp_dpi_flip`,
-`pocket_input_esp_touch` and `pocket_app_host` implement the driver and host
-contracts from `third_party/pocketjs/contracts/generated` against ESP-IDF
-APIs. They take handles from the program, not from a BSP.
-
-**The program composes and configures.** `programs/tab5/main/main.c` creates
-the board devices, wraps them in PocketJS drivers, selects the renderer and
-starts the host. The program owns its profile (`programs/tab5/profile.ts`);
-`pocket.runtime-config.ts` imports it. The build exports `pocket_profile.h`,
-whose `pocket_profile.facts` record the runtime admits packages against, and
-compiles `apps/home` against the same profile. A profile shared by several
-programs would live in `profiles/`.
+**The program composes and configures.** `programs/m5stack-tab5/main/main.c`
+brings up the board through Espressif's `m5stack_tab5_noglib` BSP, creates the
+display, input and renderers and boots the embedded app; the home variant
+starts the launcher services and boots one runtime per app. The program owns
+its profiles (`profiles/`); each `<app>.runtime-config.ts` imports one. The
+build exports `pocket_profile.h`, whose `pocket_profile.facts` record the
+runtime admits packages against.
 
 **Components one program uses stay with that program.**
 `programs/m5stack-tab5/components/` holds the launcher services, camera and
 media components of that firmware. It builds on board-independent drivers
 from the submodule (`pocket_display_esp_dpi`, `pocket_render_esp_ppa` with
-its two-lane factory, `pocket_runner`) and on Espressif's
-`m5stack_tab5_noglib` BSP; it reads the microSD card over SDSPI because the
-ESP32-C6 radio takes the SDMMC controller. Its display component and this
-repository's `pocket_display_esp_dpi_flip` are separate drivers: the first
-presents strips into one framebuffer with rotation, scaling and retained
-moves, the second flips between two framebuffers.
+its two-lane factory, `pocket_runner`); it reads the microSD card over SDSPI
+because the ESP32-C6 radio takes the SDMMC controller.
 
 **The profile is the app contract.** Every installed package carries a variant
 whose profile hash equals the program's. Changing any hashed profile field
@@ -73,7 +60,9 @@ The program adds these submodule components through `EXTRA_COMPONENT_DIRS`:
 | --- | --- |
 | `pocket_runtime` | one Rust archive (runtime, software renderer, PPA factory), host hooks, memory package source, CMake package helpers |
 | `pocket_guest_quickjs` | QuickJS realm with the generated guest bindings |
+| `pocket_runner` | the task that ticks a runtime |
 | `pocket_render_esp_ppa` | ESP32-P4 PPA renderer with software fallback |
+| `pocket_display_esp_dpi` | strips into one DPI framebuffer, with rotation, scaling and retained moves |
 
 The Rust archive builds from `third_party/pocketjs/programs/esp-idf/archive`
 with the submodule's toolchain pin (`rust-toolchain.toml`) unless a prepared

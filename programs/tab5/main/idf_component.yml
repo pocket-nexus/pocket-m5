@@ -1,6 +1,0 @@
-dependencies:
-  idf: ">=6.0,<6.3"
-  # The pinned submodule provides the PocketJS runtime; its components name
-  # this dependency in their own manifests.
-  pocket-nexus/pocket_runtime:
-    override_path: ${POCKETJS_ROOT}/platforms/esp-idf/pocket_runtime

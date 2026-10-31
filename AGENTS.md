@@ -10,9 +10,9 @@ Architecture and implementation notes belong in `docs/`, not here.
   `test`, `build`, `ci`, `chore`, `style`, `revert`. The `commit-msg` hook
   runs commitlint with `commitlint.config.mjs`.
 - The scope names the directory the change touches: a component
-  (`m5-bsp-tab5`, `display-esp-dpi-flip`, `input-esp-touch`, `app-host`), a
-  program (`tab5`, `m5stack-tab5`), an app (`home`, `hello`), `profiles`,
-  `tools`, `docs` or `deps`. Omit the scope only for repository-wide changes.
+  (`worker-esp`, `http-esp`, `pocket-system`), a program (`m5stack-tab5`), an
+  app (`worker-http`), `tools`, `docs` or `deps`. Omit the scope only for
+  repository-wide changes.
 - The header is at most 72 characters; the summary is imperative, lower case,
   without a trailing period.
 - One logical change per commit. Formatting-only changes to existing code go
@@ -70,7 +70,7 @@ Architecture and implementation notes belong in `docs/`, not here.
 - Every component states the IDF targets it supports (`REQUIRED_IDF_TARGETS`
   or `targets` in `idf_component.yml`).
 - Public headers live under `include/<namespace>/`; private headers stay in
-  `src/`. Public symbols carry the component prefix (`m5_tab5_`, `pocket_`).
+  `src/`. Public symbols carry the component prefix (`pocket_`).
 - PocketJS ABI records: set `struct_size` on every record written, validate
   `struct_size` on every record read, and advance record arrays by each
   element's `struct_size`.
