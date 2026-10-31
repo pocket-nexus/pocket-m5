@@ -1,6 +1,5 @@
 #include "tab5_camera_media.h"
 
-#if TAB5_LAUNCHER
 #include <stdbool.h>
 #include <stdio.h>
 
@@ -106,4 +105,3 @@ void tab5_camera_media_teardown(void) {
   if (media_ready)
     pocketjs_media_teardown();
 }
-#endif

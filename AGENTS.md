@@ -10,16 +10,17 @@ Architecture and implementation notes belong in `docs/`, not here.
   `test`, `build`, `ci`, `chore`, `style`, `revert`. The `commit-msg` hook
   runs commitlint with `commitlint.config.mjs`.
 - The scope names the directory the change touches: a component
-  (`m5-bsp-tab5`, `display-esp-dpi-flip`, `input-esp-touch`, `app-host`), a
-  program (`tab5`, `m5stack-tab5`), an app (`home`, `hello`), `profiles`,
-  `tools`, `docs` or `deps`. Omit the scope only for repository-wide changes.
+  (`worker-esp`, `http-esp`, `pocket-system`), a program (`m5stack-tab5`), an
+  app (`worker-http`), `tools`, `docs` or `deps`. Omit the scope only for
+  repository-wide changes.
 - The header is at most 72 characters; the summary is imperative, lower case,
   without a trailing period.
 - One logical change per commit. Formatting-only changes to existing code go
   in their own `style` commit.
-- A `third_party/pocketjs` bump is its own commit,
-  `build(deps): bump pocketjs to <short-sha>`, with the upstream commit range
-  in the body.
+- A `third_party/pocketjs` or `third_party/pocket-shell` bump is its own
+  commit, `build(deps): bump pocketjs to <short-sha>` or
+  `build(deps): bump pocket-shell to <short-sha>`, with the upstream commit
+  range in the body.
 
 ## Formatting
 
@@ -43,8 +44,11 @@ Architecture and implementation notes belong in `docs/`, not here.
 
 ## Dependencies and third-party code
 
-- `third_party/pocketjs` is a pinned submodule. Do not edit files in it from
-  this repository; land the change upstream, then bump the submodule.
+- `third_party/pocketjs` and `third_party/pocket-shell` are pinned
+  submodules. Do not edit files in them from this repository; land the change
+  upstream, then bump the submodule. Pocket Home compiles from
+  `third_party/pocket-shell` with the pinned pocketjs, so a pocketjs bump
+  rebuilds it and a breaking change needs a pocket-shell bump that follows it.
 - ESP-IDF registry dependencies are declared with exact versions in
   `idf_component.yml`. Each program commits its `dependencies.lock`.
 - Code derived from third-party sources keeps its original copyright and
@@ -70,7 +74,7 @@ Architecture and implementation notes belong in `docs/`, not here.
 - Every component states the IDF targets it supports (`REQUIRED_IDF_TARGETS`
   or `targets` in `idf_component.yml`).
 - Public headers live under `include/<namespace>/`; private headers stay in
-  `src/`. Public symbols carry the component prefix (`m5_tab5_`, `pocket_`).
+  `src/`. Public symbols carry the component prefix (`pocket_`).
 - PocketJS ABI records: set `struct_size` on every record written, validate
   `struct_size` on every record read, and advance record arrays by each
   element's `struct_size`.

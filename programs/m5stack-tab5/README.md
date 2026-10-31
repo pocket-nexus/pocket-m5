@@ -6,25 +6,25 @@ composes the runtime with `pocket_guest_quickjs`, two `pocket_render_esp_ppa`
 renderers split across the cores (`pocketjs_esp32p4_ppa_lanes`), the
 `pocket_display_esp_dpi` output and `pocket_runner`. Those components, the
 IDF archive and `engine/host-services` come from `third_party/pocketjs`; the
-program, its components and its profiles live here.
+program, its components and its profile live here.
 
 The program was imported from pocket-nexus/pocketjs#616 (`df0d434a`), whose
 platform and engine changes reached pocketjs `main` through
 pocket-nexus/pocketjs#617.
 
-| Build | Profile | Picture |
+| Profile | Launcher | Picture |
 | --- | --- | --- |
-| `idf.py build` | `tab5-hero` (`hero.runtime-config.ts`) | pocketjs `apps/hero` (manifest `apps/hero.pocket.json`) at 640x360, raster density 2, turned onto the panel |
-| `idf.py -DPOCKETJS_TAB5_APP=clear build` | `tab5-clear` (`clear.runtime-config.ts`) | pocketjs `apps/clear` (manifest `apps/clear.pocket.json`) at 360x640, raster density 2, upright |
-| `idf.py -DPOCKETJS_TAB5_APP=home -DPOCKETJS_TAB5_HOME_PACKAGE=<home.pocket> build` | `tab5-home` (`home.runtime-config.ts`) | Pocket Home's auxiliary surface, 640x360 at raster density 1, turned and presented at 2x |
+| `tab5-home` (`profile.ts`, through `home.runtime-config.ts`) | Pocket Home from `third_party/pocket-shell/shells/3ds/home` | the auxiliary surface, 640x360 at raster density 1, turned and presented at 2x |
 
-The home variant is a launcher console (`TAB5_LAUNCHER`): `components/pocket_system`
+The firmware is a launcher console: `components/pocket_system`
 keeps a store of installed apps on the microSD card (SDSPI; the `storage`
 flash partition without a card), the Pocket Link to a paired companion,
 each app's `data.fs` tree, the Wi-Fi radio on the ESP32-C6 (esp_hosted) and
-the wall clock from SNTP. The program embeds Pocket Home, compiled in
-pocket-shell against `home.runtime-config.ts`, as the launcher and boots one
-runtime per app; SELECT from the home control returns to the launcher. The
+the wall clock from SNTP. The build compiles Pocket Home from the
+pocket-shell submodule against `home.runtime-config.ts`, embeds it as the
+launcher and boots one runtime per app; SELECT from the home control returns
+to the launcher. `-DPOCKETJS_TAB5_HOME_PACKAGE=<package.pocket>` embeds a
+package compiled against the same profile instead. The
 primary surface of the profile is laid out into a PSRAM buffer that nothing
 scans out. `pocket_idf_package_open` (the IDF archive) admits a stored package
 for the profile before the runtime boots it. `components/pocket_camera` serves
@@ -45,16 +45,15 @@ task stack are in PSRAM; it runs on core 1 at priority 3, below the render
 lane, and the two HTTP request tasks at priority 2. An app whose worker fails
 returns to the launcher with the failure shown. The
 `tab5-home` profile lists `runtime.worker` and `net.http`, so packages built
-against an earlier `tab5-home`, Pocket Home included, must be rebuilt.
+against an earlier `tab5-home` must be rebuilt.
 `pocket_worker_esp` requires ESP-IDF 6.2.x. `apps/worker-http` is the device
-check: embedded as the home package it joins a Wi-Fi network and fetches a URL
-once connected and on each tap.
+check: embedded with `POCKETJS_TAB5_HOME_PACKAGE` it joins a Wi-Fi network and
+fetches a URL once connected and on each tap.
 
 A picture smaller than the screen sits between two equal black margins. The
 display moves retained pixels for content that only scrolled
 (`POCKET_DISPLAY_RETAINED_MOVE`); the runtime's damage planner finds those
-moves and repaints the rest. Pocket Clear holds 30 fps at 720x1280 this way
-(`tickHz: 30` in its profile). One AXI GDMA pair carries both the whole-row
+moves and repaints the rest. One AXI GDMA pair carries both the whole-row
 strip copies and the retained moves; of the AXI GDMA's other two pairs the
 card's SPI bus holds one and the SHA and AES accelerators take the other.
 Each strip holds a multiple of the rows that span whole 128-byte cache lines
@@ -94,17 +93,25 @@ a 192 KB stack in PSRAM (`task_stack_caps`), with the QuickJS stack limit at
 the task's guard page.
 
 ```sh
+git submodule update --init third_party/pocketjs third_party/pocket-shell
 cd programs/m5stack-tab5
-idf.py -DPOCKETJS_TAB5_APP=clear -p /dev/cu.usbmodem1201 build flash monitor
+idf.py -p /dev/cu.usbmodem1201 build flash monitor
 ```
 
 Builds run the Pocket CLI through `tools/pocket` (`POCKETJS_CLI`) and, with
 `POCKETJS_RUST_FROM_SOURCE=ON` (the default here), need a Rust toolchain with
-the `riscv32imafc-unknown-none-elf` target. The log reports the frame rate
-every five seconds.
+the `riscv32imafc-unknown-none-elf` target. Pocket Home compiles with the
+pinned `third_party/pocketjs`, not with pocket-shell's own `vendor/pocketjs`,
+which the build does not need; its typecheck inherits
+`shells/3ds/tsconfig.json`, whose `bun-types` comes from the root
+`package.json`. The image with Pocket Home is 4.1 MiB of the 8 MiB `factory`
+partition. The log reports the frame rate every five seconds.
 
-Pocket Home and the applets compile in pocket-shell against this program's
-`home.runtime-config.ts`; the profile hash depends on the profile's content,
-so a package built against an identical `tab5-home` profile in another
-checkout installs here. The profile declares no `net.http`: an app that
-requires it does not compile for `tab5-home` (`capability.unavailable`).
+The applets install from a paired Mac's catalog. pocket-shell's
+`bun run tab5` and `bun run offer` compile them against this program's
+`home.runtime-config.ts` (`POCKET_M5_ROOT` names this checkout); the profile
+hash depends on the profile's content, so a package built against an
+identical `tab5-home` profile in another checkout installs here. A UI realm
+has no network module: an app reaches the network through its worker's
+`io.http`, and one that imports `@pocketjs/framework/net`, removed from
+pocketjs, does not compile.

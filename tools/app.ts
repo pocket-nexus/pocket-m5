@@ -1,10 +1,8 @@
-// Compiles an app for a board program's profile, optionally copying the
-// package to an SD card's install inbox.
-//   bun run app build apps/hello/pocket.json [--board tab5]
-//   bun run app install apps/hello/pocket.json --sd /Volumes/SD [--board tab5]
-// Packages land in .pocket-build/apps/<board>/<output>.pocket.
+// Compiles an app for the profile of programs/m5stack-tab5 (tab5-home).
+//   bun run app build apps/worker-http/pocket.json [--runtime-config <path>]
+// Packages land in .pocket-build/apps/<output>.pocket.
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 const root = resolve(import.meta.dir, "..");
@@ -14,22 +12,21 @@ const option = (name: string) => {
   return index >= 0 ? rest[index + 1] : undefined;
 };
 const usage = () => {
-  console.error("usage: bun run app build|install <pocket.json> [--board <board>] [--runtime-config <path>] [--sd <mount>]");
+  console.error("usage: bun run app build <pocket.json> [--runtime-config <path>]");
   process.exit(2);
 };
-if ((command !== "build" && command !== "install") || !manifestArgument) usage();
+if (command !== "build" || !manifestArgument) usage();
 
-const board = option("--board") ?? "tab5";
 const runtimeConfig = option("--runtime-config") ? resolve(option("--runtime-config")!)
-  : join(root, "programs", board, "pocket.runtime-config.ts");
+  : join(root, "programs", "m5stack-tab5", "home.runtime-config.ts");
 const frameworkRoot = process.env.POCKETJS_ROOT ?? join(root, "third_party", "pocketjs");
 if (!existsSync(runtimeConfig)) {
-  console.error(`no runtime config for board ${board}: ${runtimeConfig}`);
+  console.error(`no runtime config: ${runtimeConfig}`);
   process.exit(2);
 }
 const manifest = resolve(manifestArgument!);
 const output: string = JSON.parse(readFileSync(manifest, "utf8")).app.output;
-const buildRoot = join(root, ".pocket-build", "apps", board);
+const buildRoot = join(root, ".pocket-build", "apps");
 const pocket = join(buildRoot, `${output}.pocket`);
 const compile = spawnSync(
   "bun",
@@ -40,12 +37,3 @@ const compile = spawnSync(
   { cwd: root, stdio: "inherit" },
 );
 if (compile.status !== 0) process.exit(compile.status ?? 1);
-
-if (command === "install") {
-  const sd = option("--sd");
-  if (!sd) usage();
-  const inbox = join(sd!, "pocket", "inbox");
-  mkdirSync(inbox, { recursive: true });
-  copyFileSync(pocket, join(inbox, `${output}.pocket`));
-  console.log(`copied ${pocket} -> ${inbox}; the device installs it at boot`);
-}
