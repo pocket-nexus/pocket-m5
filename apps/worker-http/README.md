@@ -13,7 +13,7 @@ console.
 
 ```sh
 bun run app build apps/worker-http/pocket.json
-idf.py -C programs/m5stack-tab5 -DPOCKETJS_TAB5_APP=home \
+idf.py -C programs/m5stack-tab5 \
   -DPOCKETJS_TAB5_HOME_PACKAGE=$PWD/.pocket-build/apps/worker-http.pocket build
 ```
 

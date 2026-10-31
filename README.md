@@ -10,12 +10,12 @@ Link and switches between them on the device.
 | M5Stack Tab5 | ESP32-P4 | 720×1280 MIPI-DSI, capacitive touch |
 
 [`programs/m5stack-tab5`](programs/m5stack-tab5/README.md) is the Tab5
-firmware. Its home variant embeds pocket-shell's Pocket Home 640×360 at 2x,
-turned onto the panel; installs over the Pocket Link; a floating home ball;
-Wi-Fi, SNTP clock, worker HTTP, camera, media and keyboard. The Hero
-(640×360 landscape) and Clear (360×640 portrait) variants each run one
-pocketjs app. App workers get an `http` node (`pocket_http_esp`); see
-[Worker domain](docs/WORKER.md).
+firmware: Pocket Home 640×360 at 2x, turned onto the panel; installs over the
+Pocket Link; a floating home ball; Wi-Fi, SNTP clock, worker HTTP, camera,
+media and keyboard. Pocket Home and the applets come from
+[pocket-shell](https://github.com/pocket-nexus/pocket-shell); the firmware
+build embeds a Pocket Home package compiled there. App workers get an `http`
+node (`pocket_http_esp`); see [Worker domain](docs/WORKER.md).
 
 ## Requirements
 
@@ -36,24 +36,23 @@ rustup target add riscv32imafc-unknown-none-elf --toolchain 1.98.1
 . $IDF_PATH/export.sh
 cd programs/m5stack-tab5
 idf.py set-target esp32p4
-idf.py build
+idf.py -DPOCKETJS_TAB5_HOME_PACKAGE=<home-main.pocket> build
 idf.py -p <port> flash monitor
 ```
 
-`idf.py build` embeds the Hero app; the program's README lists the
-`POCKETJS_TAB5_APP` variants and the Pocket Home package the home variant
-embeds.
+`<home-main.pocket>` is Pocket Home compiled in pocket-shell against
+`programs/m5stack-tab5/home.runtime-config.ts`.
 
-In the home variant, pair the Tab5 with a Mac in Pocket Home's Settings; the
-applets install from the Mac's catalog (pocket-shell's `bun run offer` with
-Pocket Companion running). The home ball returns to Pocket Home.
-`bun run app build <pocket.json>` compiles an app of this repository for the
-`tab5-home` profile into `.pocket-build/apps/`.
+Pair the Tab5 with a Mac in Pocket Home's Settings; the applets install from
+the Mac's catalog (pocket-shell's `bun run offer` with Pocket Companion
+running). The home ball returns to Pocket Home. `bun run app build
+<pocket.json>` compiles an app of this repository for the firmware's profile
+into `.pocket-build/apps/`.
 
 ## Documentation
 
 - [Repository structure](docs/STRUCTURE.md)
-- [M5Stack Tab5 firmware](programs/m5stack-tab5/README.md): variants,
+- [M5Stack Tab5 firmware](programs/m5stack-tab5/README.md): profile,
   presentation, launcher services, home ball, keyboard
 - [Worker domain](docs/WORKER.md): worker runtime, HTTP node and validation
 - [Engineering conventions](AGENTS.md): commits, formatting, dependencies

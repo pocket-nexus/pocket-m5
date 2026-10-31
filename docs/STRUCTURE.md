@@ -14,10 +14,9 @@ pocket-m5/
 │  ├─ pocket_worker_esp/        FreeRTOS owner of the PocketJS worker core
 │  └─ pocket_http_esp/          worker http node over esp_http_client
 ├─ programs/
-│  └─ m5stack-tab5/             Hero, Clear and Pocket Home firmware (from pocketjs#616)
+│  └─ m5stack-tab5/             IDF project: main, runtime config, profile, sdkconfig, partitions
 │     ├─ components/            pocket_system, pocket_camera, pocket_media (this program only)
-│     ├─ profiles/              tab5-hero, tab5-clear, tab5-home
-│     └─ apps/                  Tab5 manifests of pocketjs apps/hero and apps/clear
+│     └─ profile.ts             tab5-home: 640x360 auxiliary surface, presented at 2x
 ├─ apps/
 │  └─ worker-http/              worker HTTP check for programs/m5stack-tab5
 ├─ tests/                       host test of the HTTP record parser
@@ -35,11 +34,11 @@ board. A board support component for one board would go in
 
 **The program composes and configures.** `programs/m5stack-tab5/main/main.c`
 brings up the board through Espressif's `m5stack_tab5_noglib` BSP, creates the
-display, input and renderers and boots the embedded app; the home variant
-starts the launcher services and boots one runtime per app. The program owns
-its profiles (`profiles/`); each `<app>.runtime-config.ts` imports one. The
-build exports `pocket_profile.h`, whose `pocket_profile.facts` record the
-runtime admits packages against.
+display, input and renderers, starts the launcher services and boots one
+runtime per app. The program owns its profile (`profile.ts`);
+`home.runtime-config.ts` imports it. The build exports `pocket_profile.h`,
+whose `pocket_profile.facts` record the runtime admits packages against, and
+embeds a Pocket Home package compiled against the same profile.
 
 **Components one program uses stay with that program.**
 `programs/m5stack-tab5/components/` holds the launcher services, camera and
@@ -50,7 +49,7 @@ because the ESP32-C6 radio takes the SDMMC controller.
 
 **The profile is the app contract.** Every installed package carries a variant
 whose profile hash equals the program's. Changing any hashed profile field
-requires rebuilding every app.
+requires rebuilding every app, Pocket Home included.
 
 ## Upstream components
 

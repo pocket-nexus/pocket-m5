@@ -1,4 +1,4 @@
 import { defineRuntimeConfig } from "@pocketjs/framework/runtime-config";
-import profile from "./profiles/tab5-home.ts";
+import profile from "./profile.ts";
 
 export default defineRuntimeConfig({ profile });

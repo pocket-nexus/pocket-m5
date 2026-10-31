@@ -1,16 +1,16 @@
-/* M5Stack Tab5: a PocketJS application on the 720x1280 MIPI-DSI panel. The
- * runtime renders the picture in strips with two PPA renderers, one per
- * core; the DPI display copies each strip into the panel's framebuffer,
- * turning a landscape picture onto the portrait panel.
+/* M5Stack Tab5: Pocket Home and the PocketJS apps it installs on the
+ * 720x1280 MIPI-DSI panel. The runtime renders the picture in strips with two
+ * PPA renderers, one per core; the DPI display copies each strip into the
+ * panel's framebuffer, turning a landscape picture onto the portrait panel.
  *
- * With TAB5_LAUNCHER the embedded application is Pocket Home: the firmware
- * keeps a store of installed apps (pocket_system), switches between them,
- * and floats a home ball over the picture: a tap sends SELECT (or summons
- * the launcher from an app), a finger that moves at once drags the ball, a
- * finger that rests on it and then slides makes a gesture named by its
- * direction. A Tab5 keyboard on Ext.Port1 sends text events. An app that
- * declares a worker domain gets its own worker runtime (pocket_worker_esp)
- * with one `http` node, HTTP and HTTPS over the radio (pocket_http_esp). */
+ * The embedded application is Pocket Home: the firmware keeps a store of
+ * installed apps (pocket_system), switches between them, and floats a home
+ * ball over the picture: a tap sends SELECT (or summons the launcher from an
+ * app), a finger that moves at once drags the ball, a finger that rests on
+ * it and then slides makes a gesture named by its direction. A Tab5 keyboard
+ * on Ext.Port1 sends text events. An app that declares a worker domain gets
+ * its own worker runtime (pocket_worker_esp) with one `http` node, HTTP and
+ * HTTPS over the radio (pocket_http_esp). */
 #include <assert.h>
 #include <inttypes.h>
 #include <math.h>
@@ -25,17 +25,23 @@
 #include "esp_cache.h"
 #include "esp_check.h"
 #include "esp_heap_caps.h"
+#include "esp_hosted.h"
 #include "esp_lcd_mipi_dsi.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_touch.h"
 #include "esp_log.h"
+#include "esp_private/gdma.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "pocket/display_esp_dpi.h"
 #include "pocket/guest_idf.h"
+#include "pocket/http_esp.h"
 #include "pocket/package_source.h"
 #include "pocket/runner.h"
+#include "pocket/system.h"
+#include "pocket/worker_esp.h"
+#include "pocket/worker_ui.h"
 #include "pocket_profile.h"
 #include "pocket_spec.h"
 #include "pocketjs/esp32p4_ppa_lanes.h"
@@ -43,18 +49,6 @@
 #include "pocketjs_package_app.h"
 #include "tab5_camera_media.h"
 #include "tab5_keyboard.h"
-
-#ifndef TAB5_LAUNCHER
-#define TAB5_LAUNCHER 0
-#endif
-#if TAB5_LAUNCHER
-#include "esp_hosted.h"
-#include "esp_private/gdma.h"
-#include "pocket/http_esp.h"
-#include "pocket/system.h"
-#include "pocket/worker_esp.h"
-#include "pocket/worker_ui.h"
-#endif
 
 static const char *TAG = "pocketjs_tab5";
 
@@ -122,11 +116,9 @@ typedef struct {
   pocket_render_esp_ppa *renderers[2];
   pocketjs_esp32p4_ppa_lanes_t *lanes;
   pocket_memory_package package;
-#if TAB5_LAUNCHER
   /* The app's worker domain and the bridge of its channels into the realm. */
   pocket_worker_esp *worker;
   pocket_worker_ui *worker_ui;
-#endif
 } tab5_guest_t;
 
 typedef struct {
@@ -171,10 +163,9 @@ typedef struct {
   uint32_t contacts[TAB5_MAX_CONTACTS];
   uint32_t contact_count;
   tab5_guest_t running;
-  /* Launcher mode: the task that switches guests, woken by the runner. */
+  /* The task that switches guests, woken by the runner. */
   TaskHandle_t app_task;
   bool switch_signalled;
-#if TAB5_LAUNCHER
   /* The worker nodes and settings every app's worker domain gets; set when
    * the running app's worker failed. */
   pocket_worker_node worker_nodes[1];
@@ -182,7 +173,6 @@ typedef struct {
   uint32_t worker_generation;
   volatile bool worker_failed;
   bool worker_logged;
-#endif
   int64_t tick_started;
   uint64_t tick_us;
   uint32_t tick_max_us;
@@ -288,8 +278,7 @@ static void show_ball(tab5_host_t *host) {
  * input.text, and the keyboard's presses arrive while one is attached. */
 static uint32_t input_classes(void *context) {
   (void)context;
-  return POCKET_INPUT_CLASS_CONTACT |
-         (TAB5_LAUNCHER ? POCKET_INPUT_CLASS_BUTTONS : 0U) |
+  return POCKET_INPUT_CLASS_CONTACT | POCKET_INPUT_CLASS_BUTTONS |
          POCKET_INPUT_CLASS_TEXT;
 }
 
@@ -416,12 +405,10 @@ static int32_t input_poll(void *context, pocket_input_frame_builder *builder) {
     }
   }
   /* Outside the launcher SELECT summons the launcher instead. */
-#if TAB5_LAUNCHER
   if (buttons != 0U && !pocketjs_system_launcher_running()) {
     pocketjs_system_summon();
     buttons = 0U;
   }
-#endif
   const bool pressed = host->ball_contact >= 0;
   if (pressed != host->ball_pressed) {
     host->ball_pressed = pressed;
@@ -532,7 +519,6 @@ static const pocket_display_output_v1 BLANK = {.struct_size = sizeof(BLANK),
 
 /* ---- the launcher's operations ------------------------------------------- */
 
-#if TAB5_LAUNCHER
 static char launch_output[128];
 
 static int32_t applications(void *context, uint16_t op,
@@ -575,7 +561,6 @@ static const pocket_op_provider_v1 APPLICATIONS = {sizeof APPLICATIONS,
                                                    applications};
 static const uint16_t APPLICATION_OPS[] = {
     POCKET_OP_appTable, POCKET_OP_appLaunch, POCKET_OP_appShot};
-#endif
 
 /* ---- the panel -------------------------------------------------------------
  */
@@ -618,7 +603,6 @@ static void before_tick(void *context) {
   tab5_host_t *host = context;
   host->tick_started = esp_timer_get_time();
   tab5_camera_media_present();
-#if TAB5_LAUNCHER
   /* The frame reads the worker channels latched here. A worker fault or a
    * failed latch ends the app; the app task switches guests. */
   tab5_guest_t *running = &host->running;
@@ -633,7 +617,6 @@ static void before_tick(void *context) {
     host->switch_signalled = true;
     xTaskNotifyGive(host->app_task);
   }
-#endif
 }
 
 static void after_tick(int32_t status, void *context) {
@@ -649,8 +632,6 @@ static void after_tick(int32_t status, void *context) {
 /* ---- guests -----------------------------------------------------------------
  */
 
-/* Only the launcher switches guests; the embedded variants run one. */
-#if TAB5_LAUNCHER
 static void stop_guest(tab5_host_t *host) {
   tab5_guest_t *running = &host->running;
   if (running->runner)
@@ -679,12 +660,10 @@ static void stop_guest(tab5_host_t *host) {
   /* The next guest draws a picture its displays have never seen. */
   pocket_display_esp_dpi_invalidate(host->display);
 }
-#endif
 
 /* Boot the application in `bytes` and start its runner. `bind` records it
- * as the running app of the launcher mode and installs the system
- * namespaces into its realm; `worker`, when not NULL, is the source of its
- * worker domain. */
+ * as the running app and installs the system namespaces into its realm;
+ * `worker`, when not NULL, is the source of its worker domain. */
 static int32_t boot_guest(
     tab5_host_t *host, const uint8_t *bytes, size_t size,
     int32_t (*bind)(JSContext *realm, pocket_runtime *runtime, void *context),
@@ -751,16 +730,13 @@ static int32_t boot_guest(
     status = pocket_runtime_add_display(running->runtime,
                                         pocket_display_esp_dpi_vtable(),
                                         host->display, renderer);
-#if TAB5_LAUNCHER
   if (status == POCKET_STATUS_OK)
     status = pocket_runtime_add_op_provider(
         running->runtime, &APPLICATIONS, host, APPLICATION_OPS,
         sizeof APPLICATION_OPS / sizeof *APPLICATION_OPS);
-#endif
   if (status == POCKET_STATUS_OK && bind)
     status = bind(pocket_guest_idf_context(running->guest), running->runtime,
                   bind_context);
-#if TAB5_LAUNCHER
   /* The worker declares its channels before the realm evaluates and runs
    * its first turn after; the bridge mirrors the channels into the realm. */
   host->worker_failed = false;
@@ -784,10 +760,6 @@ static int32_t boot_guest(
       status = POCKET_STATUS_FAILED;
     }
   }
-#else
-  (void)worker;
-  (void)worker_size;
-#endif
   if (status == POCKET_STATUS_OK) {
     const int64_t started = esp_timer_get_time();
     status = pocket_runtime_boot(running->runtime);
@@ -800,10 +772,8 @@ static int32_t boot_guest(
   }
   if (status != POCKET_STATUS_OK)
     return status;
-#if TAB5_LAUNCHER
   if (running->worker != NULL)
     pocket_worker_esp_resume(running->worker);
-#endif
   pocket_runner_config_t runner_config;
   pocket_runner_config_defaults(&runner_config);
   runner_config.task_stack_bytes = TAB5_GUEST_STACK;
@@ -820,7 +790,6 @@ static int32_t boot_guest(
              : POCKET_STATUS_FAILED;
 }
 
-#if TAB5_LAUNCHER
 static int32_t bind_system(JSContext *realm, pocket_runtime *runtime,
                            void *context) {
   const pocketjs_system_app_t *app = context;
@@ -951,7 +920,7 @@ static void start_worker_host(tab5_host_t *host) {
   };
 }
 
-/* Storage and the system services of launcher mode. */
+/* Storage and the system services. */
 static void start_system(void) {
   /* The SDMMC controller drives the Wi-Fi coprocessor (esp_hosted), so the
    * card is read over SPI. */
@@ -980,7 +949,6 @@ static void start_system(void) {
   };
   ESP_ERROR_CHECK(pocketjs_system_start(&config));
 }
-#endif
 
 /* ---- the program ------------------------------------------------------------
  */
@@ -1036,23 +1004,20 @@ static void run_app(void *unused) {
     while (host.quantum % 8U != 0U || host.quantum % line_rows != 0U)
       ++host.quantum;
   assert(height % host.quantum == 0U);
-  size_t strip_budget = TAB5_STRIP_BYTES;
-  if (TAB5_LAUNCHER) {
-    /* The launcher's radio, store and link take internal RAM outside the
-     * largest heap region: both strips come from that region, and leave
-     * TAB5_INTERNAL_RESERVE of it to what allocates later: the JPEG
-     * codec's DMA descriptors (Camera, Photos) and the coprocessor link's
-     * receive pool, which both failed when the strips took it all. */
-    const size_t block =
-        heap_caps_get_largest_free_block(MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
-    const size_t shared = block > TAB5_INTERNAL_RESERVE + 256U
-                              ? (block - TAB5_INTERNAL_RESERVE) / 2U - 128U
-                              : 0U;
-    if (shared < strip_budget)
-      strip_budget = shared;
-    ESP_LOGI(TAG, "internal RAM: largest block %u bytes, strips 2 x %u",
-             (unsigned)block, (unsigned)strip_budget);
-  }
+  /* The launcher's radio, store and link take internal RAM outside the
+   * largest heap region: both strips come from that region, and leave
+   * TAB5_INTERNAL_RESERVE of it to what allocates later: the JPEG codec's
+   * DMA descriptors (Camera, Photos) and the coprocessor link's receive
+   * pool, which both failed when the strips took it all. */
+  const size_t block =
+      heap_caps_get_largest_free_block(MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
+  const size_t shared = block > TAB5_INTERNAL_RESERVE + 256U
+                            ? (block - TAB5_INTERNAL_RESERVE) / 2U - 128U
+                            : 0U;
+  const size_t strip_budget =
+      shared < TAB5_STRIP_BYTES ? shared : TAB5_STRIP_BYTES;
+  ESP_LOGI(TAG, "internal RAM: largest block %u bytes, strips 2 x %u",
+           (unsigned)block, (unsigned)strip_budget);
   const uint32_t strip_rows =
       strip_budget / (width * 2U) / host.quantum * host.quantum;
   assert(strip_rows >= host.quantum);
@@ -1096,27 +1061,25 @@ static void run_app(void *unused) {
       .min_srm_pixels = 256,
       .mask_budget = strip_budget / 2U,
   };
-  if (TAB5_LAUNCHER) {
-    const uint32_t density = picture->raster_density;
-    const uint32_t logical_width = width / density;
-    const uint32_t logical_height = height / density;
-    host.ball_px = TAB5_BALL_SIZE * density;
-    host.ball = (pocket_rect){
-        .struct_size = sizeof(pocket_rect),
-        .x = logical_width - TAB5_BALL_SIZE - TAB5_BALL_INSET,
-        .y = (logical_height - TAB5_BALL_SIZE) / 2U,
-        .width = TAB5_BALL_SIZE,
-        .height = TAB5_BALL_SIZE,
-    };
-    for (uint32_t face = 0; face < 2U; ++face) {
-      host.ball_faces[face] = heap_caps_malloc(
-          (size_t)host.ball_px * host.ball_px * sizeof(uint32_t),
-          MALLOC_CAP_SPIRAM);
-      assert(host.ball_faces[face] != NULL);
-    }
-    paint_ball(&host);
-    show_ball(&host);
+  const uint32_t density = picture->raster_density;
+  const uint32_t logical_width = width / density;
+  const uint32_t logical_height = height / density;
+  host.ball_px = TAB5_BALL_SIZE * density;
+  host.ball = (pocket_rect){
+      .struct_size = sizeof(pocket_rect),
+      .x = logical_width - TAB5_BALL_SIZE - TAB5_BALL_INSET,
+      .y = (logical_height - TAB5_BALL_SIZE) / 2U,
+      .width = TAB5_BALL_SIZE,
+      .height = TAB5_BALL_SIZE,
+  };
+  for (uint32_t face = 0; face < 2U; ++face) {
+    host.ball_faces[face] =
+        heap_caps_malloc((size_t)host.ball_px * host.ball_px * sizeof(uint32_t),
+                         MALLOC_CAP_SPIRAM);
+    assert(host.ball_faces[face] != NULL);
   }
+  paint_ball(&host);
+  show_ball(&host);
   ESP_LOGI(TAG,
            "%s: %" PRIu32 "x%" PRIu32 " %s at %" PRIu32 "x, strips of %" PRIu32
            " rows",
@@ -1124,18 +1087,12 @@ static void run_app(void *unused) {
            scale, strip_rows);
   host.app_task = xTaskGetCurrentTaskHandle();
 
-#if TAB5_LAUNCHER
   start_system();
   start_worker_host(&host);
   pocketjs_system_app_t *app = NULL;
   ESP_ERROR_CHECK(pocketjs_system_load_launcher(&app));
   if (boot_app(&host, app) != POCKET_STATUS_OK)
     abort();
-#else
-  if (boot_guest(&host, pocketjs_package_app.data, pocketjs_package_app.size,
-                 NULL, NULL, NULL, 0) != POCKET_STATUS_OK)
-    abort();
-#endif
 
   pocket_runner_stats_t last = {.struct_size = sizeof(last)};
   int64_t logged = esp_timer_get_time();
@@ -1143,7 +1100,6 @@ static void run_app(void *unused) {
     const bool woken = ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(500)) != 0U;
     pocket_runner_stats_t stats = {.struct_size = sizeof(stats)};
     ESP_ERROR_CHECK(pocket_runner_stats(host.running.runner, &stats));
-#if TAB5_LAUNCHER
     /* The runner wakes this task for a switch the launcher asked for, and
      * for a failed worker. An app that throws from a frame or whose worker
      * failed goes back to the launcher, which shows the failure once; the
@@ -1166,9 +1122,6 @@ static void run_app(void *unused) {
       last = (pocket_runner_stats_t){.struct_size = sizeof(last)};
       continue;
     }
-#else
-    (void)woken;
-#endif
     const int64_t now = esp_timer_get_time();
     if (now - logged < 5000000)
       continue;
