@@ -36,26 +36,45 @@ core 1 and opens the video device from a task on core 0: the CSI controller
 takes a DW-GDMA channel interrupt, and the DPI panel holds the DW-GDMA source
 on core 0 (a shared source routes to one core).
 
-`globalThis.wifi` also serves an open access
+`components/pocket_audio` owns both codecs on one I2S port at 44.1 kHz and
+serves `globalThis.audio` (`audio.pcm` streams mixed on the ES8388,
+`audio.capture` inputs from the ES7210: the two microphones, a headset
+microphone and the speaker loopback); the media stream plays through its
+mixer. `components/pocket_device` serves `globalThis.device`
+(`system.device`): backlight, speaker level, SoC temperature, the power rails
+and plug detection on the two PI4IOE5V6408 IO expanders, 22 free header pins,
+the card's directory listing and power off. At boot it sets the rails as
+M5Stack's vendor firmware does (battery and QC charging, USB-A 5V and EXT 5V
+on, the internal antenna) and starts the USB host that detects USB-A devices.
+The codecs and the USB host install from a task on core 1, so their
+interrupts are core 1's. The panel is read from the touch controller
+(ST7121, ST7123 or ILI9881C). `globalThis.wifi` also serves an open access
 point beside the station connection (APSTA), with an HTTP page at
 192.168.4.1.
 
 A UI realm has no network module. An app whose package carries a worker
 domain (`domains.worker`, package section 8) gets its own worker runtime
-(`pocket_worker_esp`) with one `http` node: `io.http` requests the Tab5 makes
-itself over Wi-Fi with `pocket_http_esp` (HTTPS with the ESP certificate
-bundle, mbedTLS buffers in PSRAM, certificate dates checked against the SNTP
-clock). The worker starts before the realm evaluates, its channels mirror into
-the realm once per frame (`before_tick`), and it stops before the realm and
-the package bytes are released. Its QuickJS heap (384 KiB) and its 24 KiB
-task stack are in PSRAM; it runs on core 1 at priority 3, below the render
-lane, and the two HTTP request tasks at priority 2. An app whose worker fails
-returns to the launcher with the failure shown. The
-`tab5-home` profile lists `runtime.worker` and `net.http`, so packages built
-against an earlier `tab5-home` must be rebuilt.
-`pocket_worker_esp` requires ESP-IDF 6.2.x. `apps/worker-http` is the device
-check: embedded with `POCKETJS_TAB5_HOME_PACKAGE` it joins a Wi-Fi network and
-fetches a URL once connected and on each tap.
+(`pocket_worker_esp`) with four nodes:
+
+| Node | Kind | Driver |
+| --- | --- | --- |
+| `http` | `http` | `pocket_http_esp`: HTTP and HTTPS the Tab5 makes over Wi-Fi (ESP certificate bundle, mbedTLS buffers in PSRAM, certificate dates checked against the SNTP clock) |
+| `sys` | `i2c` | `pocket_io_esp` on the BSP's system bus (G31 SDA, G32 SCL, 400 kHz): any address, shared with the board's drivers |
+| `porta` | `i2c` | `pocket_io_esp` software bus on Port A (G53 SDA, G54 SCL, 100 kHz), both hardware controllers being taken |
+| `rs485` | `uart` | `pocket_io_esp` on UART1 (TX G20, RX G21) in RS485 half duplex, driver enable on G34 |
+
+The worker starts before the realm evaluates, its channels mirror into the
+realm once per frame (`before_tick`), and it stops before the realm and the
+package bytes are released. Its QuickJS heap (1 MiB) and its 24 KiB task
+stack are in PSRAM; it runs on core 1 at priority 3, below the render lane,
+the I2C executors at 4 and the two HTTP request tasks at 2. An app whose
+worker fails returns to the launcher with the failure shown. The `tab5-home`
+profile lists `runtime.worker`, `net.http`, `io.i2c`, `io.uart`,
+`audio.pcm`, `audio.capture` and `system.device`, so packages built against
+an earlier `tab5-home` must be rebuilt.
+`pocket_worker_esp` requires ESP-IDF 6.2.x. `apps/worker-http` is the HTTP
+device check: embedded with `POCKETJS_TAB5_HOME_PACKAGE` it joins a Wi-Fi
+network and fetches a URL once connected and on each tap.
 
 A picture smaller than the screen sits between two equal black margins. The
 display moves retained pixels for content that only scrolled

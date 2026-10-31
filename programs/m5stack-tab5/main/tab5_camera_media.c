@@ -4,9 +4,9 @@
 #include <stdio.h>
 
 #include "bsp/m5stack_tab5.h"
-#include "esp_codec_dev.h"
 #include "esp_log.h"
 #include "esp_video_device.h"
+#include "pocket/audio.h"
 #include "pocket/camera.h"
 #include "pocket/media.h"
 #include "pocket/package_facts.h"
@@ -16,47 +16,32 @@ static const char *TAG = "tab5_camera_media";
 /* The sensor's picture is upright with the Tab5 held as the landscape
  * firmware draws: the panel's left edge on top. */
 #define TAB5_CAMERA_ROTATION 0U
-/* The ES8388's volume at the guest's full volume. */
-#define TAB5_VOLUME_MAX 80U
 /* The second core: the first runs the guest. */
 #define TAB5_WORKER_CORE 1
 
 static bool camera_ready;
 static bool media_ready;
-static esp_codec_dev_handle_t speaker;
 
 static esp_err_t start_sensor(void *context) {
   (void)context;
   return bsp_camera_start(NULL);
 }
 
+/* The media stream plays through pocket_audio's mixer: the speaker level
+ * is the device's, the stream's own volume a gain on its ring. */
 static esp_err_t audio_open(void *context, uint32_t rate) {
   (void)context;
-  speaker = bsp_audio_codec_speaker_init();
-  if (speaker == NULL)
-    return ESP_FAIL;
-  esp_codec_dev_sample_info_t format = {
-      .bits_per_sample = 16,
-      .channel = 2,
-      .sample_rate = rate,
-  };
-  if (esp_codec_dev_open(speaker, &format) != ESP_CODEC_DEV_OK)
-    return ESP_FAIL;
-  esp_codec_dev_set_out_vol(speaker, TAB5_VOLUME_MAX);
-  return ESP_OK;
+  return pocket_audio_media_open(rate);
 }
 
 static esp_err_t audio_write(void *context, const int16_t *pcm, size_t frames) {
   (void)context;
-  return esp_codec_dev_write(speaker, (void *)pcm, (int)(frames * 4U)) ==
-                 ESP_CODEC_DEV_OK
-             ? ESP_OK
-             : ESP_FAIL;
+  return pocket_audio_media_write(pcm, frames);
 }
 
 static void audio_volume(void *context, uint32_t percent) {
   (void)context;
-  esp_codec_dev_set_out_vol(speaker, (int)(percent * TAB5_VOLUME_MAX / 100U));
+  pocket_audio_media_gain(percent);
 }
 
 void tab5_camera_media_install(JSContext *realm, pocket_runtime *runtime,

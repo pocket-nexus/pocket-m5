@@ -9,8 +9,12 @@
  * app), a finger that moves at once drags the ball, a finger that rests on
  * it and then slides makes a gesture named by its direction. A Tab5 keyboard
  * on Ext.Port1 sends text events. An app that declares a worker domain gets
- * its own worker runtime (pocket_worker_esp) with one `http` node, HTTP and
- * HTTPS over the radio (pocket_http_esp). */
+ * its own worker runtime (pocket_worker_esp) with an `http` node, HTTP and
+ * HTTPS over the radio (pocket_http_esp), two `i2c` nodes, the system bus
+ * (`sys`) and Port A (`porta`), and a `uart` node on the RS485 port
+ * (`rs485`, pocket_io_esp). An app whose plan enables system.device,
+ * audio.pcm or audio.capture gets `globalThis.device` (pocket_device) and
+ * `globalThis.audio` (pocket_audio). */
 #include <assert.h>
 #include <inttypes.h>
 #include <math.h>
@@ -33,10 +37,14 @@
 #include "esp_private/gdma.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "pocket/audio.h"
+#include "pocket/device.h"
 #include "pocket/display_esp_dpi.h"
 #include "pocket/guest_idf.h"
 #include "pocket/http_esp.h"
+#include "pocket/io_esp.h"
 #include "pocket/package_source.h"
 #include "pocket/runner.h"
 #include "pocket/system.h"
@@ -91,11 +99,23 @@ static const char *TAG = "pocketjs_tab5";
 /* An app's worker domain: its QuickJS heap and task stack in PSRAM, which
  * leaves the internal RAM to the strips. It runs on core 1 below the render
  * lane (priority 5), and its HTTP requests below it. */
-#define TAB5_WORKER_HEAP (384U * 1024U)
+#define TAB5_WORKER_HEAP (1024U * 1024U)
 #define TAB5_WORKER_STACK (24U * 1024U)
 #define TAB5_WORKER_STACK_LIMIT (16U * 1024U)
 #define TAB5_WORKER_PRIORITY 3U
 #define TAB5_HTTP_PRIORITY 2U
+/* Port A (the red Grove port): a software I2C bus, both hardware
+ * controllers being taken by the system bus and the keyboard's. */
+#define TAB5_PORTA_SDA 53
+#define TAB5_PORTA_SCL 54
+#define TAB5_PORTA_HZ 100000U
+/* The RS485 transceiver: UART1 with its driver enable on RTS. */
+#define TAB5_RS485_PORT UART_NUM_1
+#define TAB5_RS485_TX 20
+#define TAB5_RS485_RX 21
+#define TAB5_RS485_DE 34
+/* The speaker level the firmware starts at. */
+#define TAB5_VOLUME 60U
 
 /* The primary surface of a profile whose picture is the auxiliary surface:
  * laid out off screen into one PSRAM buffer that nothing scans out. */
@@ -168,7 +188,7 @@ typedef struct {
   bool switch_signalled;
   /* The worker nodes and settings every app's worker domain gets; set when
    * the running app's worker failed. */
-  pocket_worker_node worker_nodes[1];
+  pocket_worker_node worker_nodes[4];
   pocket_worker_esp_config worker_config;
   uint32_t worker_generation;
   volatile bool worker_failed;
@@ -603,6 +623,7 @@ static void before_tick(void *context) {
   tab5_host_t *host = context;
   host->tick_started = esp_timer_get_time();
   tab5_camera_media_present();
+  pocket_audio_tick();
   /* The frame reads the worker channels latched here. A worker fault or a
    * failed latch ends the app; the app task switches guests. */
   tab5_guest_t *running = &host->running;
@@ -647,6 +668,8 @@ static void stop_guest(tab5_host_t *host) {
    * guest, renderers and displays. */
   if (running->runtime) {
     tab5_camera_media_teardown();
+    pocket_audio_teardown();
+    pocket_device_teardown();
     pocket_runtime_destroy(running->runtime);
   }
   if (running->guest)
@@ -795,8 +818,16 @@ static int32_t bind_system(JSContext *realm, pocket_runtime *runtime,
   const pocketjs_system_app_t *app = context;
   if (pocketjs_system_bind(realm, app) != ESP_OK)
     return POCKET_STATUS_FAILED;
-  tab5_camera_media_install(realm, runtime,
-                            pocketjs_system_app_facts(app)->features);
+  const uint32_t features = pocketjs_system_app_facts(app)->features;
+  tab5_camera_media_install(realm, runtime, features);
+  if ((features & POCKET_IDF_FEATURE_DEVICE) != 0U &&
+      pocket_device_install(realm) != ESP_OK)
+    return POCKET_STATUS_FAILED;
+  if ((features & (POCKET_IDF_FEATURE_AUDIO_PCM |
+                   POCKET_IDF_FEATURE_AUDIO_CAPTURE)) != 0U &&
+      pocket_audio_install(
+          realm, (features & POCKET_IDF_FEATURE_AUDIO_CAPTURE) != 0U) != ESP_OK)
+    return POCKET_STATUS_FAILED;
   return POCKET_STATUS_OK;
 }
 
@@ -886,7 +917,7 @@ static bool http_clock_wait(void *context, uint32_t ms) {
   return pocketjs_system_clock_wait(ms);
 }
 
-/* The `http` node every app's worker domain gets, and its settings. */
+/* The nodes every app's worker domain gets, and their settings. */
 static void start_worker_host(tab5_host_t *host) {
   const pocket_http_esp_config http = {
       .struct_size = sizeof(http),
@@ -905,10 +936,65 @@ static void start_worker_host(tab5_host_t *host) {
       .name = "http",
       .driver = pocket_http_esp_driver(driver),
   };
+  /* The system bus is the BSP's: the IO expanders, touch, codecs, camera,
+   * RTC, IMU and power monitor share it, and the IDF bus lock serializes
+   * the worker's scripts with their drivers. */
+  const pocket_i2c_esp_config sys = {
+      .struct_size = sizeof(sys),
+      .bus = bsp_i2c_get_handle(),
+      .speed_hz = 400000,
+      .max_transaction_bytes = 512,
+      .max_timeout_ms = 100,
+      .task_core = 1,
+      .task_stack_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,
+  };
+  const pocket_i2c_esp_config porta = {
+      .struct_size = sizeof(porta),
+      .sda_pin = TAB5_PORTA_SDA,
+      .scl_pin = TAB5_PORTA_SCL,
+      .speed_hz = TAB5_PORTA_HZ,
+      .max_transaction_bytes = 512,
+      .max_timeout_ms = 100,
+      .task_core = 1,
+      .task_stack_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,
+  };
+  const pocket_uart_esp_config rs485 = {
+      .struct_size = sizeof(rs485),
+      .port = TAB5_RS485_PORT,
+      .tx_pin = TAB5_RS485_TX,
+      .rx_pin = TAB5_RS485_RX,
+      .rts_pin = TAB5_RS485_DE,
+      .cts_pin = -1,
+      .max_baud = 1000000,
+      .rs485 = true,
+      .task_core = 1,
+  };
+  pocket_i2c_esp *sys_driver = pocket_i2c_esp_create(&sys);
+  pocket_i2c_esp *porta_driver = pocket_i2c_esp_create(&porta);
+  pocket_uart_esp *rs485_driver = pocket_uart_esp_create(&rs485);
+  assert(sys_driver != NULL && porta_driver != NULL && rs485_driver != NULL);
+  host->worker_nodes[1] = (pocket_worker_node){
+      .struct_size = sizeof(host->worker_nodes[1]),
+      .kind = POCKET_WORKER_I2C,
+      .name = "sys",
+      .driver = pocket_i2c_esp_driver(sys_driver),
+  };
+  host->worker_nodes[2] = (pocket_worker_node){
+      .struct_size = sizeof(host->worker_nodes[2]),
+      .kind = POCKET_WORKER_I2C,
+      .name = "porta",
+      .driver = pocket_i2c_esp_driver(porta_driver),
+  };
+  host->worker_nodes[3] = (pocket_worker_node){
+      .struct_size = sizeof(host->worker_nodes[3]),
+      .kind = POCKET_WORKER_UART,
+      .name = "rs485",
+      .driver = pocket_uart_esp_driver(rs485_driver),
+  };
   host->worker_config = (pocket_worker_esp_config){
       .struct_size = sizeof(host->worker_config),
       .nodes = host->worker_nodes,
-      .node_count = 1,
+      .node_count = sizeof host->worker_nodes / sizeof host->worker_nodes[0],
       .heap_limit = TAB5_WORKER_HEAP,
       .stack_limit = TAB5_WORKER_STACK_LIMIT,
       .task_stack_size = TAB5_WORKER_STACK,
@@ -920,8 +1006,9 @@ static void start_worker_host(tab5_host_t *host) {
   };
 }
 
-/* Storage and the system services. */
-static void start_system(void) {
+/* Storage and the system services; returns the card's mount point, NULL
+ * when the store is the flash partition. */
+static const char *start_system(void) {
   /* The SDMMC controller drives the Wi-Fi coprocessor (esp_hosted), so the
    * card is read over SPI. */
   bsp_sdcard_cfg_t card = {0};
@@ -948,6 +1035,74 @@ static void start_system(void) {
       .wifi_prepare = start_coprocessor,
   };
   ESP_ERROR_CHECK(pocketjs_system_start(&config));
+  return on_card ? BSP_SD_MOUNT_POINT : NULL;
+}
+
+static void set_volume(void *context, uint32_t percent) {
+  (void)context;
+  pocket_audio_set_volume(percent);
+}
+
+static uint32_t volume(void *context) {
+  (void)context;
+  return pocket_audio_volume();
+}
+
+typedef struct {
+  const char *card_root;
+  SemaphoreHandle_t done;
+} board_start_t;
+
+static void start_board_services(const char *card_root);
+
+/* Drivers allocate their interrupts on the core that installs them. The
+ * display, PPA, card, coprocessor link and camera hold core 0's lines, so
+ * the codecs' I2S DMA and the USB host install from core 1. */
+static void board_task(void *context) {
+  board_start_t *start = context;
+  start_board_services(start->card_root);
+  xSemaphoreGive(start->done);
+  vTaskDelete(NULL);
+}
+
+static void start_board(const char *card_root) {
+  board_start_t start = {.card_root = card_root,
+                         .done = xSemaphoreCreateBinary()};
+  assert(start.done != NULL);
+  const BaseType_t created = xTaskCreatePinnedToCore(board_task, "tab5_board",
+                                                     6144, &start, 5, NULL, 1);
+  assert(created == pdPASS);
+  xSemaphoreTake(start.done, portMAX_DELAY);
+  vSemaphoreDelete(start.done);
+}
+
+/* The codecs and the board's own controls. Ext.Port1's G0 and G1 carry the
+ * keyboard's bus and Port A's G53 and G54 the `porta` node while it is
+ * open; the pins below are left to apps. */
+static void start_board_services(const char *card_root) {
+  static const uint8_t PINS[] = {
+      49, 50, 53, 54,                                     /* Ext.Port1 */
+      18, 19, 5,  38, 7, 3, 2, 47, 16, 17, 45, 52, 37, 6, /* M-Bus */
+      4,  48, 35, 51,
+  };
+  const pocket_audio_config_t audio = {
+      .struct_size = sizeof(audio),
+      .task_core = 1,
+      .volume = TAB5_VOLUME,
+  };
+  const bool speaker = pocket_audio_setup(&audio) == ESP_OK;
+  if (!speaker)
+    ESP_LOGE(TAG, "the codecs did not start");
+  const pocket_device_config_t device = {
+      .struct_size = sizeof(device),
+      .panel = pocket_device_detect_panel(),
+      .pins = PINS,
+      .pin_count = sizeof PINS,
+      .card_root = card_root,
+      .set_volume = speaker ? set_volume : NULL,
+      .volume = speaker ? volume : NULL,
+  };
+  ESP_ERROR_CHECK(pocket_device_setup(&device));
 }
 
 /* ---- the program ------------------------------------------------------------
@@ -1087,7 +1242,7 @@ static void run_app(void *unused) {
            scale, strip_rows);
   host.app_task = xTaskGetCurrentTaskHandle();
 
-  start_system();
+  start_board(start_system());
   start_worker_host(&host);
   pocketjs_system_app_t *app = NULL;
   ESP_ERROR_CHECK(pocketjs_system_load_launcher(&app));

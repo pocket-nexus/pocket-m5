@@ -11,12 +11,13 @@ Link and switches between them on the device.
 
 [`programs/m5stack-tab5`](programs/m5stack-tab5/README.md) is the Tab5
 firmware: Pocket Home 640×360 at 2x, turned onto the panel; installs over the
-Pocket Link; a floating home ball; Wi-Fi, SNTP clock, worker HTTP, camera,
-media and keyboard. Pocket Home and the applets come from
-[pocket-shell](https://github.com/pocket-nexus/pocket-shell), pinned as the
-`third_party/pocket-shell` submodule; the firmware build compiles Pocket Home
-from it. App workers get an `http` node (`pocket_http_esp`); see
-[Worker domain](docs/WORKER.md).
+Pocket Link; a floating home ball; Wi-Fi with an optional access point,
+SNTP clock, worker HTTP, I2C and RS485 nodes, camera, media, PCM audio and
+microphones, board controls and keyboard. Pocket Home and the applets come
+from [pocket-shell](https://github.com/pocket-nexus/pocket-shell), pinned as
+the `third_party/pocket-shell` submodule; the firmware build compiles Pocket
+Home from it. App workers get an `http` node (`pocket_http_esp`) and `i2c` and
+`uart` nodes (`pocket_io_esp`); see [Worker domain](docs/WORKER.md).
 
 ## Requirements
 

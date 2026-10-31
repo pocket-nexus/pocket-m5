@@ -12,8 +12,11 @@ idf_component_register(
         pocket_render_esp_ppa
         pocket_runner
         pocket_runtime
+        pocket_audio
         pocket_camera
+        pocket_device
         pocket_http_esp
+        pocket_io_esp
         pocket_media
         pocket_system
         pocket_worker_esp

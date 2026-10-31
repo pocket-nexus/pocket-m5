@@ -19,7 +19,8 @@ pocket-m5/
 │  └─ pocket_io_esp/            worker i2c and uart nodes
 ├─ programs/
 │  └─ m5stack-tab5/             IDF project: main, runtime config, profile, sdkconfig, partitions
-│     ├─ components/            pocket_system, pocket_camera, pocket_media (this program only)
+│     ├─ components/            pocket_system, pocket_camera, pocket_media, pocket_audio,
+│     │                         pocket_device (this program only)
 │     └─ profile.ts             tab5-home: 640x360 auxiliary surface, presented at 2x
 ├─ apps/
 │  └─ worker-http/              worker HTTP check for programs/m5stack-tab5
@@ -46,8 +47,9 @@ compiles Pocket Home (`third_party/pocket-shell/shells/3ds/home`) against the
 same profile.
 
 **Components one program uses stay with that program.**
-`programs/m5stack-tab5/components/` holds the launcher services, camera and
-media components of that firmware. It builds on board-independent drivers
+`programs/m5stack-tab5/components/` holds the launcher services, camera,
+media, audio (`audio.pcm`, `audio.capture`) and device (`system.device`)
+components of that firmware. It builds on board-independent drivers
 from the submodule (`pocket_display_esp_dpi`, `pocket_render_esp_ppa` with
 its two-lane factory, `pocket_runner`); it reads the microSD card over SDSPI
 because the ESP32-C6 radio takes the SDMMC controller.
