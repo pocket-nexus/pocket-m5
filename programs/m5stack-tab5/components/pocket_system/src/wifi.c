@@ -10,12 +10,18 @@
  * esp_wifi events arrive on the default event loop's task; the guest reads
  * on its own task. One mutex guards the state, and the status JSON is built
  * under it.
+ *
+ * startAccessPoint switches the radio to station plus access point: an open
+ * network on the station's channel, served at the access point's address
+ * (192.168.4.1) by an HTTP server with one page. The station connection
+ * stays up; stopAccessPoint returns to station mode.
  */
 
 #include <stdio.h>
 #include <string.h>
 
 #include "esp_event.h"
+#include "esp_http_server.h"
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_timer.h"
@@ -39,6 +45,8 @@
 #define WIFI_RSSI_MS 2000
 /* The radio worker wakes this often for the calls that go over the link. */
 #define WIFI_POLL_MS 200
+/* Stations the access point admits at once. */
+#define WIFI_AP_STATIONS 4
 
 static const char *TAG = "pocketjs_wifi";
 
@@ -88,6 +96,15 @@ static int retries;
 /* A disconnect this module asked for is not a failure. */
 static bool expect_disconnect;
 static JsonBuffer status_out = {.limit = 8 * 1024};
+/* The access point: what the guest asked for, what the radio serves. */
+static struct {
+  bool want, on, changed;
+  char ssid[WIFI_SSID_BYTES];
+  char address[16];
+  int stations;
+  esp_netif_t *netif;
+  httpd_handle_t server;
+} ap;
 
 static void take(void) { xSemaphoreTake(lock, portMAX_DELAY); }
 
@@ -289,6 +306,81 @@ static void collect_scan(void) {
   give();
 }
 
+// ---------------------------------------------------------------------------
+// the access point
+// ---------------------------------------------------------------------------
+
+static esp_err_t ap_page(httpd_req_t *request) {
+  static const char PAGE[] =
+      "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
+      "<meta name=\"viewport\" content=\"width=device-width\">"
+      "<title>M5Stack Tab5</title><style>body{display:flex;flex-direction:"
+      "column;justify-content:center;align-items:center;height:100vh;"
+      "margin:0;font-family:sans-serif;background:#f0f0f0}h1{font-size:48px;"
+      "color:#333;margin:0}p{font-size:18px;color:#666}</style></head>"
+      "<body><h1>Hello World</h1><p>From M5Stack Tab5, PocketJS</p></body>"
+      "</html>";
+  httpd_resp_set_type(request, "text/html");
+  return httpd_resp_send(request, PAGE, HTTPD_RESP_USE_STRLEN);
+}
+
+/* The radio worker's half of startAccessPoint and stopAccessPoint. */
+static void apply_access_point(void) {
+  take();
+  const bool want = ap.want;
+  wifi_config_t config;
+  memset(&config, 0, sizeof config);
+  /* An SSID fills all 32 bytes without a terminator; ssid_len holds its
+   * length. */
+  const size_t ssid_length = strnlen(ap.ssid, sizeof config.ap.ssid);
+  memcpy(config.ap.ssid, ap.ssid, ssid_length);
+  give();
+  config.ap.ssid_len = (uint8_t)ssid_length;
+  config.ap.authmode = WIFI_AUTH_OPEN;
+  config.ap.max_connection = WIFI_AP_STATIONS;
+  esp_err_t result = ESP_OK;
+  char where[16] = "";
+  if (want) {
+    if (ap.netif == NULL)
+      ap.netif = esp_netif_create_default_wifi_ap();
+    result =
+        ap.netif == NULL ? ESP_ERR_NO_MEM : esp_wifi_set_mode(WIFI_MODE_APSTA);
+    if (result == ESP_OK)
+      result = esp_wifi_set_config(WIFI_IF_AP, &config);
+    esp_netif_ip_info_t info;
+    if (result == ESP_OK && esp_netif_get_ip_info(ap.netif, &info) == ESP_OK)
+      snprintf(where, sizeof where, IPSTR, IP2STR(&info.ip));
+    if (result == ESP_OK && ap.server == NULL) {
+      httpd_config_t server = HTTPD_DEFAULT_CONFIG();
+      const httpd_uri_t page = {
+          .uri = "/", .method = HTTP_GET, .handler = ap_page};
+      result = httpd_start(&ap.server, &server);
+      if (result == ESP_OK)
+        httpd_register_uri_handler(ap.server, &page);
+      else
+        ap.server = NULL;
+    }
+  } else {
+    if (ap.server != NULL) {
+      httpd_stop(ap.server);
+      ap.server = NULL;
+    }
+    result = esp_wifi_set_mode(WIFI_MODE_STA);
+  }
+  take();
+  ap.on = want && result == ESP_OK;
+  snprintf(ap.address, sizeof ap.address, "%s", ap.on ? where : "");
+  if (!ap.on)
+    ap.stations = 0;
+  if (result != ESP_OK)
+    snprintf(error, sizeof error, "The access point did not %s (%s)",
+             want ? "start" : "stop", esp_err_to_name(result));
+  give();
+  ESP_LOGI(TAG, "access point %s%.*s%s", want ? "on " : "off",
+           want ? (int)ssid_length : 0, (const char *)config.ap.ssid,
+           result == ESP_OK ? "" : " failed");
+}
+
 /* Calls over the coprocessor link block for up to a second and need a
  * deep stack: the worker makes them, never the guest's frame or the event
  * loop's task. */
@@ -304,7 +396,11 @@ static void poll_radio(void *argument) {
         esp_timer_get_time() - rssi_read_us > WIFI_RSSI_MS * 1000;
     scan_requested = false;
     scan_done = false;
+    const bool ap_change = ap.changed;
+    ap.changed = false;
     give();
+    if (ap_change)
+      apply_access_point();
     if (start_scan) {
       wifi_scan_config_t config;
       memset(&config, 0, sizeof config);
@@ -334,10 +430,18 @@ static void on_event(void *argument, esp_event_base_t base, int32_t id,
                      void *data) {
   (void)argument;
   take();
-  if (base == WIFI_EVENT && id == WIFI_EVENT_STA_START) {
-    plan_auto_join();
-    if (!auto_next())
-      state = WIFI_IDLE;
+  if (base == WIFI_EVENT && id == WIFI_EVENT_AP_STACONNECTED) {
+    ap.stations += 1;
+  } else if (base == WIFI_EVENT && id == WIFI_EVENT_AP_STADISCONNECTED) {
+    if (ap.stations > 0)
+      ap.stations -= 1;
+  } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_START) {
+    /* A mode change restarts the station; a connection made stays. */
+    if (state != WIFI_CONNECTED && state != WIFI_CONNECTING) {
+      plan_auto_join();
+      if (!auto_next())
+        state = WIFI_IDLE;
+    }
   } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_STOP) {
     state = WIFI_OFF;
     address[0] = '\0';
@@ -482,7 +586,14 @@ const char *wifi_status_json(void) {
     status_network(out, networks[i].ssid, bars(networks[i].rssi),
                    networks[i].secure);
   }
-  jbuf_text(out, "]}");
+  jbuf_text(out, ap.on ? "],\"accessPoint\":{\"on\":true,\"ssid\":"
+                       : "],\"accessPoint\":{\"on\":false,\"ssid\":");
+  jbuf_cstring(out, ap.on ? ap.ssid : "");
+  jbuf_text(out, ",\"address\":");
+  jbuf_cstring(out, ap.address);
+  jbuf_text(out, ",\"stations\":");
+  jbuf_u64(out, (uint64_t)ap.stations);
+  jbuf_text(out, "}}");
   const char *text = jbuf_cstr(out);
   give();
   return text == NULL
@@ -603,4 +714,35 @@ void wifi_address(char *out, size_t capacity) {
   take();
   snprintf(out, capacity, "%s", state == WIFI_CONNECTED ? address : "");
   give();
+}
+
+bool wifi_start_access_point(const char *ssid, size_t ssid_length) {
+  if (lock == NULL || ssid_length == 0 || ssid_length >= WIFI_SSID_BYTES)
+    return false;
+  take();
+  bool ok = ready && state != WIFI_OFF;
+  if (!ok) {
+    snprintf(error, sizeof error, "Wi-Fi is off");
+  } else {
+    memcpy(ap.ssid, ssid, ssid_length);
+    ap.ssid[ssid_length] = '\0';
+    ap.want = true;
+    ap.changed = true;
+    error[0] = '\0';
+  }
+  give();
+  return ok;
+}
+
+bool wifi_stop_access_point(void) {
+  if (lock == NULL)
+    return false;
+  take();
+  const bool ok = ready;
+  if (ok && (ap.want || ap.on)) {
+    ap.want = false;
+    ap.changed = true;
+  }
+  give();
+  return ok;
 }

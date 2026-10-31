@@ -36,6 +36,10 @@ core 1 and opens the video device from a task on core 0: the CSI controller
 takes a DW-GDMA channel interrupt, and the DPI panel holds the DW-GDMA source
 on core 0 (a shared source routes to one core).
 
+`globalThis.wifi` also serves an open access
+point beside the station connection (APSTA), with an HTTP page at
+192.168.4.1.
+
 A UI realm has no network module. An app whose package carries a worker
 domain (`domains.worker`, package section 8) gets its own worker runtime
 (`pocket_worker_esp`) with one `http` node: `io.http` requests the Tab5 makes
