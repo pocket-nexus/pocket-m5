@@ -24,7 +24,13 @@ switching between them, the Pocket Link to a paired companion, a guest's
 `<slot>` is the first 16 hex digits of SHA-256 of the app id. An install
 streams into `apps/<slot>/link-upload.pocket`, is admitted
 (`pocket_idf_package_open`: footer, FNV-1a64, a variant for the firmware's
-profile and binding generation) and replaces `package.pocket`.
+profile and binding generation) and replaces `package.pocket`. The
+`bundled` packages of `pocketjs_system_config_t`, embedded in the firmware,
+take the same path at start: each is admitted, written to
+`link-upload.pocket` and renamed onto `package.pocket`, and the launcher's
+cached facts are refreshed. A slot whose package has the bundled package's
+footer is left as it is, so an unchanged bundle costs one 8-byte read per
+package; an app removed from the store returns at the next boot.
 `pocketjs_system_mount_flash` mounts a wear-levelled FAT partition when no
 card is available.
 

@@ -16,7 +16,8 @@
  *
  * where <slot> is the first 16 hex digits of SHA-256 of the app id. The
  * launcher is the package the firmware embeds; it gets a slot for its data
- * like any app.
+ * like any app. Bundled packages, also embedded, are written into their
+ * slots at start and are then installed apps.
  *
  * Threads: everything except pocketjs_system_start, pocketjs_system_online
  * and pocketjs_system_clock_wait runs on the task that runs the runtime.
@@ -34,6 +35,12 @@
 extern "C" {
 #endif
 
+/** A package the firmware embeds to install as an app. */
+typedef struct {
+  const void *bytes;
+  size_t size;
+} pocketjs_system_bundled_t;
+
 typedef struct {
   size_t struct_size;
   /** The profile the firmware runs: installs must carry a variant for it. */
@@ -43,6 +50,10 @@ typedef struct {
   /** The launcher package the firmware embeds. */
   const void *launcher;
   size_t launcher_size;
+  /** Packages to install: start writes each into its slot when the slot
+   * holds no package or a package with another hash. */
+  const pocketjs_system_bundled_t *bundled;
+  size_t bundled_count;
   /** A mounted directory holding the store. */
   const char *root;
   /** The console's name and model in the link handshake. */
@@ -56,7 +67,8 @@ typedef struct {
   esp_err_t (*wifi_prepare)(void);
 } pocketjs_system_config_t;
 
-/** Open the store and the launcher package, start the link and the radio. */
+/** Open the store and the launcher package, install the bundled packages,
+ * start the link and the radio. */
 esp_err_t pocketjs_system_start(const pocketjs_system_config_t *config);
 
 /** Mount the FAT partition `label` (wear levelled) at `root`. */

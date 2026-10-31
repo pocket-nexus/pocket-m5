@@ -446,7 +446,56 @@ esp_err_t pocketjs_system_mount_flash(const char *label, const char *root) {
   return mount.result;
 }
 
-/* The store's directories, the launcher's slot and the link's identity. */
+/* A bundled package goes into its slot the way an install does: written to
+ * the staging name, then renamed onto package.pocket. A slot whose package
+ * has the same footer is left as it is, so a boot with an unchanged bundle
+ * reads 8 bytes per package. */
+static void install_bundled(const pocketjs_system_bundled_t *bundled) {
+  pocket_idf_package_facts facts;
+  char error[160];
+  const uint8_t *bytes = bundled->bytes;
+  if (!open_package(bytes, bundled->size, &facts, error, sizeof error)) {
+    ESP_LOGE(TAG, "bundled package: %s", error);
+    return;
+  }
+  uint64_t active = 0;
+  if (strcmp(facts.slot, launcher_slot) == 0 ||
+      (launcher_host_active_hash(facts.slot, &active) &&
+       active == footer_of(bytes, bundled->size)))
+    return;
+  char staging[SLOT_PATH_BYTES];
+  char committed[SLOT_PATH_BYTES];
+  if (!link_host_staging_path(facts.slot, staging, sizeof staging) ||
+      !launcher_host_slot_path(facts.slot, PACKAGE_NAME, committed,
+                               sizeof committed))
+    return;
+  const int64_t start = esp_timer_get_time();
+  FILE *file = fopen(staging, "wb");
+  bool written =
+      file != NULL && fwrite(bytes, 1, bundled->size, file) == bundled->size;
+  if (file != NULL && fclose(file) != 0)
+    written = false;
+  if (!written) {
+    remove(staging);
+    ESP_LOGE(TAG, "slot %s: the bundled package could not be written",
+             facts.slot);
+    return;
+  }
+  remove(committed);
+  if (rename(staging, committed) != 0) {
+    ESP_LOGE(TAG, "slot %s: the bundled package could not be committed",
+             facts.slot);
+    return;
+  }
+  const LauncherPackage package = facts_of(&facts, bytes, bundled->size);
+  launcher_note_installed(facts.slot, &package);
+  ESP_LOGI(TAG, "slot %s: installed the bundled package (%u bytes, %lld ms)",
+           facts.slot, (unsigned)bundled->size,
+           (long long)((esp_timer_get_time() - start) / 1000));
+}
+
+/* The store's directories, the launcher's slot, the bundled packages and
+ * the link's identity. */
 static void start_store(void *argument) {
   esp_err_t *result = argument;
   mkdir(apps_dir, 0777);
@@ -461,6 +510,8 @@ static void start_store(void *argument) {
   LauncherPackage package = facts_of(&facts, bytes, config.launcher_size);
   memcpy(launcher_slot, facts.slot, sizeof launcher_slot);
   launcher_init(launcher_slot, &package);
+  for (size_t i = 0; i < config.bundled_count; ++i)
+    install_bundled(&config.bundled[i]);
   link_init();
 }
 
