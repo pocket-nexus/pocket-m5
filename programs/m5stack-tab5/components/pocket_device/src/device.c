@@ -165,16 +165,29 @@ const char *pocket_device_detect_panel(void) {
 /* ---- IO expanders ---------------------------------------------------------
  */
 
+/* A PI4IOE5V6408 pin drives only with its direction bit set and its bit in
+ * the Output High-Impedance register (0x07) clear. The driver's reset leaves
+ * 0x07 at 0xFF, and set_dir does not touch it: a pin left there floats and
+ * the expander's pull-down holds the rail's enable low. The level is latched
+ * first, so the pin starts driving at it. */
+static esp_err_t drive_pin(esp_io_expander_handle_t expander, uint32_t mask,
+                           uint8_t level) {
+  esp_err_t err = esp_io_expander_set_level(expander, mask, level);
+  if (err == ESP_OK)
+    err = esp_io_expander_set_output_mode(expander, mask,
+                                          IO_EXPANDER_OUTPUT_MODE_PUSH_PULL);
+  if (err == ESP_OK)
+    err = esp_io_expander_set_dir(expander, mask, IO_EXPANDER_OUTPUT);
+  return err;
+}
+
 static esp_err_t drive_switch(size_t index, bool on) {
   const switch_t *item = &SWITCHES[index];
   esp_io_expander_handle_t expander = device.expanders[item->expander];
   if (expander == NULL)
     return ESP_ERR_INVALID_STATE;
-  const uint32_t mask = 1U << item->pin;
-  const uint8_t level = on ? item->on_level : !item->on_level;
-  esp_err_t err = esp_io_expander_set_level(expander, mask, level);
-  if (err == ESP_OK)
-    err = esp_io_expander_set_dir(expander, mask, IO_EXPANDER_OUTPUT);
+  const esp_err_t err = drive_pin(expander, 1U << item->pin,
+                                  on ? item->on_level : !item->on_level);
   if (err == ESP_OK)
     device.switch_on[index] = on;
   return err;
@@ -530,8 +543,7 @@ static void power_off(void *context) {
   ESP_LOGW(TAG, "power off");
   bsp_display_brightness_set(0);
   const uint32_t mask = 1U << POWER_OFF_PIN;
-  esp_io_expander_set_level(expander, mask, 0);
-  esp_io_expander_set_dir(expander, mask, IO_EXPANDER_OUTPUT);
+  drive_pin(expander, mask, 0);
   /* The power controller latches off on a pulse; three of them, as the
    * vendor firmware sends. */
   for (int i = 0; i < 3; ++i) {
@@ -685,9 +697,7 @@ esp_err_t pocket_device_setup(const pocket_device_config_t *config) {
   if (device.expanders[EXP1] != NULL) {
     esp_io_expander_set_dir(device.expanders[EXP1], 1U << USB_C_DETECT_PIN,
                             IO_EXPANDER_INPUT);
-    esp_io_expander_set_level(device.expanders[EXP1], 1U << POWER_OFF_PIN, 0);
-    esp_io_expander_set_dir(device.expanders[EXP1], 1U << POWER_OFF_PIN,
-                            IO_EXPANDER_OUTPUT);
+    drive_pin(device.expanders[EXP1], 1U << POWER_OFF_PIN, 0);
   }
   if (device.expanders[EXP0] != NULL)
     esp_io_expander_set_dir(device.expanders[EXP0], 1U << HEADPHONE_DETECT_PIN,
