@@ -5,11 +5,14 @@ PocketJS as the `third_party/pocketjs` submodule and follows the directory
 split of pocketjs `main` (pocket-nexus/pocketjs#603): **platforms** hold SDK
 and board drivers, and **programs** compose drivers into firmware with a
 runtime config and the **profile**, the software contract apps compile
-against.
+against. The launcher, Pocket Home, comes from the `third_party/pocket-shell`
+submodule.
 
 ```text
 pocket-m5/
-├─ third_party/pocketjs/        PocketJS checkout pinned to a commit (submodule)
+├─ third_party/
+│  ├─ pocketjs/                 PocketJS checkout pinned to a commit (submodule)
+│  └─ pocket-shell/             Pocket Home and the applets pinned to a commit (submodule)
 ├─ platforms/esp-idf/           ESP-IDF components owned by this repository
 │  ├─ pocket_worker_esp/        FreeRTOS owner of the PocketJS worker core
 │  └─ pocket_http_esp/          worker http node over esp_http_client
@@ -38,7 +41,8 @@ display, input and renderers, starts the launcher services and boots one
 runtime per app. The program owns its profile (`profile.ts`);
 `home.runtime-config.ts` imports it. The build exports `pocket_profile.h`,
 whose `pocket_profile.facts` record the runtime admits packages against, and
-embeds a Pocket Home package compiled against the same profile.
+compiles Pocket Home (`third_party/pocket-shell/shells/3ds/home`) against the
+same profile.
 
 **Components one program uses stay with that program.**
 `programs/m5stack-tab5/components/` holds the launcher services, camera and
@@ -72,4 +76,8 @@ archive is passed with `POCKET_RUNTIME_ARCHIVE`.
 The root `package.json` declares `third_party/pocketjs` as a Bun workspace, so
 `@pocketjs/framework` resolves to the submodule and its dependencies install
 once at the root. `tools/pocket` runs the submodule's CLI; the CMake helpers
-call it through `POCKETJS_CLI`.
+call it through `POCKETJS_CLI`. Pocket Home compiles from
+`third_party/pocket-shell/shells/3ds` with that CLI: its imports resolve to
+the root's `node_modules`, and its `tsconfig.json` names `bun-types`, which
+the root `package.json` lists for that reason. pocket-shell's own
+`vendor/pocketjs` is not used.

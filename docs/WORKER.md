@@ -11,7 +11,7 @@ The worker core, runner and `tools/build-worker.ts` come from PocketJS `engine/w
 ```sh
 bun install --frozen-lockfile
 . /absolute/path/to/esp-idf/export.sh
-idf.py -C programs/m5stack-tab5 -DPOCKETJS_TAB5_HOME_PACKAGE=<home-main.pocket> build
+idf.py -C programs/m5stack-tab5 build
 ```
 
 The runner uses `esp_timer_stop_blocking` and requires ESP-IDF **6.2.x**; the remaining components accept their declared IDF ranges. Only ESP32-P4 was exercised on hardware. QuickJS-NG is pinned to 0.14.0. The runner builds its QuickJS dependency with `-fno-strict-aliasing`, matching the existing guest component.

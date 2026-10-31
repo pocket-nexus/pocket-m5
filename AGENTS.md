@@ -17,9 +17,10 @@ Architecture and implementation notes belong in `docs/`, not here.
   without a trailing period.
 - One logical change per commit. Formatting-only changes to existing code go
   in their own `style` commit.
-- A `third_party/pocketjs` bump is its own commit,
-  `build(deps): bump pocketjs to <short-sha>`, with the upstream commit range
-  in the body.
+- A `third_party/pocketjs` or `third_party/pocket-shell` bump is its own
+  commit, `build(deps): bump pocketjs to <short-sha>` or
+  `build(deps): bump pocket-shell to <short-sha>`, with the upstream commit
+  range in the body.
 
 ## Formatting
 
@@ -43,8 +44,11 @@ Architecture and implementation notes belong in `docs/`, not here.
 
 ## Dependencies and third-party code
 
-- `third_party/pocketjs` is a pinned submodule. Do not edit files in it from
-  this repository; land the change upstream, then bump the submodule.
+- `third_party/pocketjs` and `third_party/pocket-shell` are pinned
+  submodules. Do not edit files in them from this repository; land the change
+  upstream, then bump the submodule. Pocket Home compiles from
+  `third_party/pocket-shell` with the pinned pocketjs, so a pocketjs bump
+  rebuilds it and a breaking change needs a pocket-shell bump that follows it.
 - ESP-IDF registry dependencies are declared with exact versions in
   `idf_component.yml`. Each program commits its `dependencies.lock`.
 - Code derived from third-party sources keeps its original copyright and

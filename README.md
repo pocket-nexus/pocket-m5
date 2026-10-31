@@ -13,9 +13,10 @@ Link and switches between them on the device.
 firmware: Pocket Home 640×360 at 2x, turned onto the panel; installs over the
 Pocket Link; a floating home ball; Wi-Fi, SNTP clock, worker HTTP, camera,
 media and keyboard. Pocket Home and the applets come from
-[pocket-shell](https://github.com/pocket-nexus/pocket-shell); the firmware
-build embeds a Pocket Home package compiled there. App workers get an `http`
-node (`pocket_http_esp`); see [Worker domain](docs/WORKER.md).
+[pocket-shell](https://github.com/pocket-nexus/pocket-shell), pinned as the
+`third_party/pocket-shell` submodule; the firmware build compiles Pocket Home
+from it. App workers get an `http` node (`pocket_http_esp`); see
+[Worker domain](docs/WORKER.md).
 
 ## Requirements
 
@@ -28,20 +29,21 @@ node (`pocket_http_esp`); see [Worker domain](docs/WORKER.md).
 ## Quick start
 
 ```sh
-git clone --recurse-submodules <repository-url> pocket-m5
+git clone <repository-url> pocket-m5
 cd pocket-m5
+git submodule update --init third_party/pocketjs third_party/pocket-shell
 bun install                         # JavaScript dependencies and git hooks
 rustup target add riscv32imafc-unknown-none-elf --toolchain 1.98.1
 
 . $IDF_PATH/export.sh
 cd programs/m5stack-tab5
 idf.py set-target esp32p4
-idf.py -DPOCKETJS_TAB5_HOME_PACKAGE=<home-main.pocket> build
+idf.py build
 idf.py -p <port> flash monitor
 ```
 
-`<home-main.pocket>` is Pocket Home compiled in pocket-shell against
-`programs/m5stack-tab5/home.runtime-config.ts`.
+The build does not use pocket-shell's own `vendor/pocketjs` submodule, so the
+command above initializes the two submodules without `--recursive`.
 
 Pair the Tab5 with a Mac in Pocket Home's Settings; the applets install from
 the Mac's catalog (pocket-shell's `bun run offer` with Pocket Companion
@@ -57,7 +59,7 @@ into `.pocket-build/apps/`.
 - [Worker domain](docs/WORKER.md): worker runtime, HTTP node and validation
 - [Engineering conventions](AGENTS.md): commits, formatting, dependencies
 
-## PocketJS version
+## Pinned dependencies
 
 `third_party/pocketjs` is pinned to a commit on pocketjs `main` and tracks
 that branch. `main` carries the platform, engine and framework changes of
@@ -66,6 +68,11 @@ pocket-nexus/pocketjs#617, and the worker runtime in `engine/worker` that
 `pocket_worker_esp` builds, merged through pocket-nexus/pocketjs#623. The
 driver contracts and directory layout come from pocket-nexus/pocketjs#603.
 
+`third_party/pocket-shell` is pinned to a commit on pocket-shell `main`.
+The firmware compiles `shells/3ds/home` from it with the pinned pocketjs.
+
 ## License
 
-MIT, see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE). pocket-shell is GPL-3.0 (Pocket Home is
+`GPL-3.0-or-later`); a firmware image that embeds Pocket Home contains that
+code.
