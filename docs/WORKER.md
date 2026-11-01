@@ -6,7 +6,7 @@ The `pocket_worker_esp` component owns a second QuickJS runtime on a FreeRTOS ta
 
 ## Source checkout and builds
 
-The worker core, runner and `tools/build-worker.ts` come from PocketJS `engine/worker`, which reached pocketjs `main` through pocket-nexus/pocketjs#623; the await-based SDK and the removal of the turn time limits come from pocket-nexus/pocketjs#626. The pinned `third_party/pocketjs` includes them; `POCKETJS_ROOT` selects another checkout for `pocket_worker_esp`.
+The worker core, runner and `tools/build-worker.ts` come from PocketJS `engine/worker`, which reached pocketjs `main` through pocket-nexus/pocketjs#623; the await-based SDK and the removal of the turn time limits come from pocket-nexus/pocketjs#626. The pinned `third_party/pocketjs` includes them. The pin is commit `b10cd4a2` on the pocketjs branch `worker-i2c-receive`, one commit on `main` that adds the I2C `receive` step and has not reached `main`. `POCKETJS_ROOT` selects another checkout for `pocket_worker_esp`.
 
 ```sh
 bun install --frozen-lockfile
