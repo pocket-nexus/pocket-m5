@@ -12,4 +12,4 @@ ${CC:-cc} -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
   -I platforms/esp-idf/pocket_http_esp/src tests/http-record.c \
   platforms/esp-idf/pocket_http_esp/src/record.c -o "$validation_dir/http-record"
 "$validation_dir/http-record"
-bun test ./tests/sensors.test.ts ./tests/rtc-setting.test.ts ./tests/pocket-home-clock.test.ts
+bun test ./tests/sensors.test.ts ./tests/rtc-setting.test.ts ./tests/pocket-home-clock.test.ts ./tests/unit-swap.test.ts

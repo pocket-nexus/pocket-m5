@@ -30,7 +30,8 @@ the wall clock from SNTP. The build compiles Pocket Home
 (`apps/pocket-home`) with `pocket.host.config.ts`, embeds it as the
 launcher and boots one runtime per app; SELECT from the home control returns
 to the launcher. The build also compiles the apps that
-`POCKETJS_TAB5_BUNDLED_APPS` lists (default `apps/tab5-demo;apps/worker-http`)
+`POCKETJS_TAB5_BUNDLED_APPS` lists (default
+`apps/tab5-demo;apps/worker-http;apps/unit-swap`)
 and embeds them; `pocketjs_system_start` writes each into its store slot when
 the slot holds no package or one with another hash, so they are installed
 apps. `-DPOCKETJS_TAB5_HOME_PACKAGE=<package.pocket>` embeds a package
@@ -84,8 +85,9 @@ host contract lists `runtime.worker`, `net.http`, `io.i2c`, `io.uart`,
 `audio.pcm`, `audio.capture` and `system.device`.
 `pocket_worker_esp` requires ESP-IDF 6.2.x. `apps/worker-http` is the HTTP
 device check: it joins a Wi-Fi network and fetches a URL once connected and
-on each tap. `apps/tab5-demo`
-exercises the other nodes and services.
+on each tap. `apps/unit-swap` drives one Port A unit at a time (ENV III,
+RFID 2, Ultrasonic I2C) and switches drivers when the unit changes.
+`apps/tab5-demo` exercises the other nodes and services.
 
 A picture smaller than the screen sits between two equal black margins. The
 display moves retained pixels for content that only scrolled
@@ -138,9 +140,10 @@ idf.py -p /dev/cu.usbmodem1201 build flash monitor
 Builds run the Pocket CLI through `tools/pocket` (`POCKETJS_CLI`) and, with
 `POCKETJS_RUST_FROM_SOURCE=ON` (the default here), need a Rust toolchain with
 the `riscv32imafc-unknown-none-elf` target. The image with Pocket Home and
-the two bundled apps is 6.1 MiB of the 8 MiB `factory` partition (with
-Pocket Home alone 4.1 MiB); on first boot the card takes 3.1 s to store the
-1.6 MiB demo and 0.6 s for `worker-http`. `-DPOCKETJS_TAB5_BUNDLED_APPS=`
+the three bundled apps is 7.3 MiB of the 8 MiB `factory` partition (with
+Pocket Home alone 4.1 MiB); on first boot the card takes 2.1 s to store the
+1.6 MiB demo, 0.5 s for `worker-http` and 1.5 s for the 1.2 MiB
+`unit-swap`. `-DPOCKETJS_TAB5_BUNDLED_APPS=`
 builds without them. The log reports the frame rate every five seconds.
 
 The applets install from a paired Mac's catalog. An applet compiled with
