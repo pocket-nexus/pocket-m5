@@ -45,7 +45,7 @@ bus at 100 kHz).
 
 The SHT30 and the RCWL-9620 return results to a bare read with no register
 byte. The drivers use the I2C `receive(layout)` step (step op 3, from
-pocketjs `worker-i2c-receive`) for those reads: `[write(0xF3, 0x2D),
+pocket-nexus/pocketjs#639) for those reads: `[write(0xF3, 0x2D),
 receive([bytes(3)])]` reads the SHT30 status word in one transaction.
 
 The RFID 2 driver implements ISO 14443A in TypeScript on the MFRC522 register
