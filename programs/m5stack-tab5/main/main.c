@@ -716,7 +716,10 @@ static int32_t boot_guest(
     return POCKET_STATUS_FAILED;
   int32_t status = pocket_runtime_set_guest(
       running->runtime, pocket_guest_idf_vtable(), running->guest);
-  running->package = (pocket_memory_package){bytes, size};
+  /* pocket_system verified the package's hashes when it admitted it; the
+   * runtime reads the bytes in place without a hash pass of its own. */
+  running->package =
+      (pocket_memory_package){bytes, size, POCKET_MEMORY_PACKAGE_VERIFIED};
   if (status == POCKET_STATUS_OK)
     status = pocket_runtime_set_package_source(
         running->runtime, pocket_memory_package_vtable(), &running->package);

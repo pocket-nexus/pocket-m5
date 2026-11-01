@@ -15,9 +15,10 @@
  *   <root>/apps/<slot>/data/            the guest's data.fs tree
  *
  * where <slot> is the first 16 hex digits of SHA-256 of the app id. The
- * launcher is the package the firmware embeds; it gets a slot for its data
- * like any app. Bundled packages, also embedded, are written into their
- * slots at start and are then installed apps.
+ * launcher and the bundled packages are embedded in the firmware and read
+ * from flash in place; each gets a slot for its cached facts and its data
+ * like any app. A bundled package is an installed app the companion can
+ * neither replace nor remove.
  *
  * Threads: everything except pocketjs_system_start, pocketjs_system_online
  * and pocketjs_system_clock_wait runs on the task that runs the runtime.
@@ -35,7 +36,7 @@
 extern "C" {
 #endif
 
-/** A package the firmware embeds to install as an app. */
+/** A package the firmware embeds as an installed app. */
 typedef struct {
   const void *bytes;
   size_t size;
@@ -54,8 +55,8 @@ typedef struct {
   /** The launcher package the firmware embeds. */
   const void *launcher;
   size_t launcher_size;
-  /** Packages to install: start writes each into its slot when the slot
-   * holds no package or a package with another hash. */
+  /** Packages served from flash as installed apps: start admits each once
+   * and refreshes its slot's cached facts. */
   const pocketjs_system_bundled_t *bundled;
   size_t bundled_count;
   /** A mounted directory holding the store. */

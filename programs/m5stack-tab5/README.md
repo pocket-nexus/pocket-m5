@@ -32,14 +32,17 @@ launcher and boots one runtime per app; SELECT from the home control returns
 to the launcher. The build also compiles the apps that
 `POCKETJS_TAB5_BUNDLED_APPS` lists (default
 `apps/tab5-demo;apps/worker-http;apps/unit-swap`)
-and embeds them; `pocketjs_system_start` writes each into its store slot when
-the slot holds no package or one with another hash, so they are installed
-apps. `-DPOCKETJS_TAB5_SHELL_PACKAGE=<package.pocket>` embeds a package
+and embeds them; `pocketjs_system_start` admits each once and serves it from
+flash as an installed app, so a bundled app is never copied to the card or
+into PSRAM. `-DPOCKETJS_TAB5_SHELL_PACKAGE=<package.pocket>` embeds a package
 the host contract admits in place of Pocket Shell. The primary surface is
 laid out into a PSRAM buffer that nothing scans out.
-`pocket_idf_package_open` (the IDF archive) admits a stored package by the
-exported host facts (`pocket_profile.facts`) before the runtime boots it, and
-`pocket_runner` ticks at the cadence the runtime reports for it. `components/pocket_camera` serves
+`pocket_idf_package_open` (the IDF archive) admits a package by the
+exported host facts (`pocket_profile.facts`) before the runtime boots it,
+once at start for the embedded packages and at each load for a package read
+from the card; the runtime then reads the bytes in place without a copy or
+a second hash pass (`POCKET_MEMORY_PACKAGE_VERIFIED`), and `pocket_runner`
+ticks at the cadence the runtime reports for it. `components/pocket_camera` serves
 `globalThis.camera` (the SC202CS on MIPI-CSI: a 320x240 preview at 15 fps,
 QR decoding, JPEG stills on the card) and `components/pocket_media` serves
 `globalThis.media` (the companion's stream on the ES8388 speaker) to a guest
@@ -141,10 +144,8 @@ Builds run the Pocket CLI through `tools/pocket` (`POCKETJS_CLI`) and, with
 `POCKETJS_RUST_FROM_SOURCE=ON` (the default here), need a Rust toolchain with
 the `riscv32imafc-unknown-none-elf` target. The image with Pocket Shell and
 the three bundled apps is 7.3 MiB of the 8 MiB `factory` partition (with
-Pocket Shell alone 4.1 MiB); on first boot the card takes 2.1 s to store the
-1.6 MiB demo, 0.5 s for `worker-http` and 1.5 s for the 1.2 MiB
-`unit-swap`. `-DPOCKETJS_TAB5_BUNDLED_APPS=`
-builds without them. The log reports the frame rate every five seconds.
+Pocket Shell alone 4.1 MiB). `-DPOCKETJS_TAB5_BUNDLED_APPS=` builds without
+them. The log reports the frame rate every five seconds.
 
 The applets install from a paired Mac's catalog, and an app installs from an
 install QR code that Pocket Shell scans (`components/pocket_system`,
