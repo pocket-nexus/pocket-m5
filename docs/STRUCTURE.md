@@ -9,6 +9,7 @@ compile and are admitted against. The launcher, Pocket Home, is `apps/pocket-hom
 
 ```text
 pocket-m5/
+├─ .github/workflows/           firmware.yml: host checks, Tab5 build, releases on v* tags
 ├─ third_party/
 │  └─ pocketjs/                 PocketJS checkout pinned to a commit (submodule)
 ├─ platforms/esp-idf/           ESP-IDF components owned by this repository
@@ -27,7 +28,8 @@ pocket-m5/
 ├─ tests/                       host tests: HTTP record, I2C descriptors, sensor drivers,
 │                               Pocket Home's clock
 ├─ tools/                       pocket CLI wrapper, app packaging, formatter, host tests,
-│                               tab5-demo artwork conversion, Pocket Home's icons
+│                               tab5-demo artwork conversion, Pocket Home's icons,
+│                               firmware packaging (firmware-dist.ts)
 └─ docs/                        repository and worker reference
 ```
 

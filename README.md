@@ -25,7 +25,9 @@ launcher (M5Tab5-UserDemo) on PocketJS.
 ## Requirements
 
 - ESP-IDF 6.2.x with the `esp32p4` target (`pocket_worker_esp` needs 6.2;
-  the other components declare `>=6.0,<6.3`)
+  the other components declare `>=6.0,<6.3`). 6.2 has no release branch;
+  CI builds with ESP-IDF `master` at the commit in `IDF_COMMIT` of
+  `.github/workflows/firmware.yml`.
 - Bun, version in `.bun-version`
 - Rust through rustup, with `riscv32imafc-unknown-none-elf` installed for the
   toolchain pinned in `third_party/pocketjs/rust-toolchain.toml`
@@ -53,6 +55,41 @@ without a companion; applets from a paired Mac's catalog (pocket-shell's
 ball returns to Pocket Home. `bun run app build <pocket.app.json>` compiles
 an app of this repository with the firmware's host config into
 `.pocket-build/apps/`.
+
+## Firmware releases
+
+`.github/workflows/firmware.yml` runs on pull requests, on pushes to `main`
+and on `v*` tags:
+
+- **Host checks**: `bun run format:check` and `tools/test-worker-io.sh`.
+- **Tab5 firmware**: installs ESP-IDF at `IDF_COMMIT` (cached per commit) and
+  the Rust toolchain of `third_party/pocketjs/rust-toolchain.toml`, runs
+  `idf.py build` in `programs/m5stack-tab5`, and packages the build with
+  `tools/firmware-dist.ts` into the `pocket-m5-tab5` workflow artifact.
+- **Release**, on a `v*` tag only: publishes the packaged files as a GitHub
+  release of that tag; a tag with a suffix (`v0.2.0-rc1`) is a prerelease.
+
+The firmware version is `git describe` of the checkout, so a tagged build is
+`pocket-m5-tab5-v0.1.0`. To publish one:
+
+```sh
+git tag -a v0.1.0 -m "pocket-m5 v0.1.0"
+git push origin v0.1.0
+```
+
+A release holds:
+
+| File | Use |
+| --- | --- |
+| `pocket-m5-tab5-<version>.bin` | bootloader, partition table and app merged from 0x0; `write-flash 0x0` installs it and erases `nvs` (saved Wi-Fi networks) |
+| `pocket-m5-tab5-<version>.zip` | the three images and `flash_args`; `write-flash @flash_args` updates and keeps `nvs` |
+| `SHA256SUMS` | SHA-256 of both |
+
+The release notes (`RELEASE.md` from `tools/firmware-dist.ts`) give the
+pocketjs and ESP-IDF versions and the `esptool` commands. Neither image
+writes the `storage` partition or the microSD card, so installed apps and
+their data stay. `bun tools/firmware-dist.ts` packages a local build the same
+way (into `.pocket-build/dist/`) with the ESP-IDF environment exported.
 
 ## Documentation
 
