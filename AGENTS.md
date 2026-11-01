@@ -40,6 +40,9 @@ Architecture and implementation notes belong in `docs/`, not here.
   `.git/hooks`.
 - Use the Bun version in `.bun-version` and an ESP-IDF release within the
   range declared in the components' `idf_component.yml` (`>=6.0,<6.3`).
+  CI and releases build with the ESP-IDF commit in `IDF_COMMIT` of
+  `.github/workflows/firmware.yml`; moving it is its own commit, validated on
+  a device.
 
 ## Dependencies and third-party code
 
