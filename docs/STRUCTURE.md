@@ -24,9 +24,10 @@ pocket-m5/
 ├─ apps/
 │  ├─ pocket-home/              the launcher, from pocket-shell's shells/3ds/home
 │  ├─ worker-http/              worker HTTP check for programs/m5stack-tab5
+│  ├─ unit-swap/                Port A units found and driven by the worker, one at a time
 │  └─ tab5-demo/                the Tab5 factory launcher (M5Tab5-UserDemo) on PocketJS
 ├─ tests/                       host tests: HTTP record, I2C descriptors, sensor drivers,
-│                               Pocket Home's clock
+│                               Pocket Home's clock, Unit Swap's conversions and records
 ├─ tools/                       pocket CLI wrapper, app packaging, formatter, host tests,
 │                               tab5-demo artwork conversion, Pocket Home's icons,
 │                               firmware packaging (firmware-dist.ts)
