@@ -24,8 +24,8 @@ idf_component_register(
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wall -Wextra -Werror)
 
-# The launcher is Pocket Home (apps/pocket-home), compiled against
-# home.runtime-config.ts. A package compiled against the same profile
+# The launcher is Pocket Home (apps/pocket-home), compiled against the
+# host config pocket.host.config.ts. A package the host contract admits
 # replaces it.
 set(POCKETJS_TAB5_HOME_PACKAGE "" CACHE FILEPATH "Launcher package to embed instead of apps/pocket-home")
 if(POCKETJS_TAB5_HOME_PACKAGE)
@@ -33,19 +33,19 @@ if(POCKETJS_TAB5_HOME_PACKAGE)
         TARGET ${COMPONENT_LIB}
         NAME app
         PACKAGE "${POCKETJS_TAB5_HOME_PACKAGE}"
-        RUNTIME_CONFIG "../home.runtime-config.ts")
+        HOST_CONFIG "../pocket.host.config.ts")
 else()
     pocketjs_compile_app(
         TARGET ${COMPONENT_LIB}
         NAME app
-        MANIFEST "../../../apps/pocket-home/pocket.json"
-        RUNTIME_CONFIG "../home.runtime-config.ts")
+        MANIFEST "../../../apps/pocket-home/pocket.app.json"
+        HOST_CONFIG "../pocket.host.config.ts")
 endif()
 
 # Local apps the firmware installs at boot (pocket_system's bundled
 # packages): each entry is an app directory below the repository root,
-# compiled against the same profile as the launcher. tab5_bundled.c lists
-# them for main.c.
+# compiled against the same host config as the launcher. tab5_bundled.c
+# lists them for main.c.
 set(POCKETJS_TAB5_BUNDLED_APPS "apps/tab5-demo;apps/worker-http" CACHE STRING "App directories below the repository root to install at boot")
 set(bundled_includes "")
 set(bundled_entries "")
@@ -57,8 +57,8 @@ foreach(app_dir IN LISTS POCKETJS_TAB5_BUNDLED_APPS)
     pocketjs_compile_app(
         TARGET ${COMPONENT_LIB}
         NAME ${bundled_name}
-        MANIFEST "../../../${app_dir}/pocket.json"
-        RUNTIME_CONFIG "../home.runtime-config.ts"
+        MANIFEST "../../../${app_dir}/pocket.app.json"
+        HOST_CONFIG "../pocket.host.config.ts"
         PROFILE_EXPORT_DIR "${CMAKE_CURRENT_BINARY_DIR}/pocketjs/bundled/profile")
     string(APPEND bundled_includes "#include \"pocketjs_package_${bundled_name}.h\"\n")
     string(APPEND bundled_entries

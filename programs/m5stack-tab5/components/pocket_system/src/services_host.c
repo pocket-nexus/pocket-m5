@@ -124,25 +124,36 @@ static uint64_t footer_of(const uint8_t *bytes, size_t size) {
   return hash;
 }
 
-/* Admit `bytes` for the firmware's profile and read the variant's facts. */
+/* Admit `bytes` by the firmware's host facts and read the admitted
+ * variant's facts. */
 static bool open_package(const uint8_t *bytes, size_t size,
                          pocket_idf_package_facts *facts, char *error,
                          size_t capacity) {
+  /* pocket_idf_package_open's codes 19..25: the first admission item the
+   * closest variant fails. */
+  static const char *const ITEMS[] = {
+      "raster density",    // 19
+      "animation class",   // 20
+      "tick rate",         // 21
+      "viewport",          // 22
+      "presentation",      // 23
+      "capabilities",      // 24
+      "auxiliary surface", // 25
+  };
   memset(facts, 0, sizeof *facts);
   facts->struct_size = sizeof *facts;
   const int32_t code = pocket_idf_package_open(
-      bytes, size, (const uint8_t *)config.target, strlen(config.target),
-      config.host_abi, config.profile_hash, facts);
+      bytes, size, config.facts, config.host_abi, config.profile_hash, facts);
   if (code == 0)
     return true;
   if (code == 6)
-    snprintf(error, capacity, "the package has no variant for %s",
-             config.target);
+    snprintf(error, capacity, "the package has no variant");
   else if (code == 7)
     snprintf(error, capacity,
              "the package was built for another binding generation");
-  else if (code == 16)
-    snprintf(error, capacity, "the package was built for another profile");
+  else if (code >= 19 && code <= 25)
+    snprintf(error, capacity, "%s does not provide the package's %s",
+             config.target, ITEMS[code - 19]);
   else
     snprintf(error, capacity, "the package is damaged (%ld)", (long)code);
   return false;
@@ -153,10 +164,15 @@ static uint32_t le32(const uint8_t *p) {
          (uint32_t)p[3] << 24;
 }
 
-/* Package section 8 of the variant for the firmware's target, binding
- * generation and profile (contracts/spec/pocket-package.ts): the worker
- * source, NUL-terminated. Call on an admitted package. */
+static uint64_t le64(const uint8_t *p) {
+  return (uint64_t)le32(p) | (uint64_t)le32(p + 4) << 32;
+}
+
+/* Package section 8 of the admitted variant, the one whose hash (variant
+ * offset 24, contracts/spec/pocket-package.ts) is facts->variant_hash: the
+ * worker source, NUL-terminated. */
 static bool worker_section(const uint8_t *bytes, size_t size,
+                           const pocket_idf_package_facts *facts,
                            const char **source, size_t *length) {
   enum { HEADER = 32, VARIANT = 64, SECTION = 16, FOOTER = 8, WORKER = 8 };
   if (size < HEADER + FOOTER)
@@ -166,16 +182,12 @@ static bool worker_section(const uint8_t *bytes, size_t size,
   ((uint64_t)(offset) <= payload && (uint64_t)(count) <= payload - (offset))
   const uint64_t table = HEADER + ((uint64_t)le32(bytes + 8) + 15) / 16 * 16;
   const uint32_t variants = le32(bytes + 12);
-  const size_t target_length = strlen(config.target);
   if (variants > 64 || !WITHIN(table, (uint64_t)variants * VARIANT))
     return false;
   for (uint32_t v = 0; v < variants; ++v) {
     const uint8_t *variant = bytes + table + (uint64_t)v * VARIANT;
-    const uint32_t target = le32(variant), target_size = le32(variant + 4);
     if (le32(variant + 8) != config.host_abi ||
-        memcmp(variant + 32, config.profile_hash, 32) ||
-        !WITHIN(target, target_size) || target_size != target_length ||
-        memcmp(bytes + target, config.target, target_length))
+        le64(variant + 24) != facts->variant_hash)
       continue;
     const uint32_t count = le32(variant + 12), sections = le32(variant + 16);
     if (count > 64 || !WITHIN(sections, (uint64_t)count * SECTION))
@@ -519,7 +531,7 @@ esp_err_t pocketjs_system_start(const pocketjs_system_config_t *settings) {
   if (started)
     return ESP_ERR_INVALID_STATE;
   if (settings == NULL || settings->struct_size < sizeof *settings ||
-      settings->target == NULL || settings->profile_hash == NULL ||
+      settings->target == NULL || settings->facts == NULL ||
       settings->launcher == NULL || settings->root == NULL ||
       strlen(settings->root) >= sizeof root_dir - 8) {
     return ESP_ERR_INVALID_ARG;
@@ -727,7 +739,7 @@ void pocketjs_system_report_failure(const char *message) {
 bool pocketjs_system_app_worker(const pocketjs_system_app_t *app,
                                 const char **source, size_t *size) {
   return app != NULL && source != NULL && size != NULL &&
-         worker_section(app->bytes, app->size, source, size);
+         worker_section(app->bytes, app->size, &app->facts, source, size);
 }
 
 bool pocketjs_system_online(void) { return wifi_online(); }

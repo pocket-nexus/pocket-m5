@@ -1,7 +1,7 @@
 # Worker HTTP
 
 A device check for the worker's `io.http` resource on `programs/m5stack-tab5`
-(profile `tab5-home`). The Wi-Fi page scans and joins a network through
+(host `tab5-home`). The Wi-Fi page scans and joins a network through
 `@pocketjs/framework/wifi`, with an on-screen keyboard for the passphrase;
 the radio saves a joined network in NVS. When the radio first connects the UI
 publishes target 0 on the `request` ring, and the HTTP page publishes a
@@ -16,7 +16,7 @@ lists it as "Worker HTTP". Built on its own and embedded as the home
 package, it runs in place of Pocket Home:
 
 ```sh
-bun run app build apps/worker-http/pocket.json
+bun run app build apps/worker-http/pocket.app.json
 idf.py -C programs/m5stack-tab5 \
   -DPOCKETJS_TAB5_HOME_PACKAGE=$PWD/.pocket-build/apps/worker-http.pocket build
 ```

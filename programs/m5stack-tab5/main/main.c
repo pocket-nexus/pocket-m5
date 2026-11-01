@@ -808,8 +808,8 @@ static int32_t boot_guest(
   runner_config.after_tick = after_tick;
   runner_config.user_data = host;
   host->switch_signalled = false;
-  return pocket_runner_start(running->runtime, pocket_profile.tick_hz,
-                             &runner_config, &running->runner) == ESP_OK
+  return pocket_runner_start(running->runtime, &runner_config,
+                             &running->runner) == ESP_OK
              ? POCKET_STATUS_OK
              : POCKET_STATUS_FAILED;
 }
@@ -1027,6 +1027,7 @@ static const char *start_system(void) {
   const pocketjs_system_config_t config = {
       .struct_size = sizeof(config),
       .target = pocket_profile.id,
+      .facts = pocket_profile.facts,
       .host_abi = pocket_profile.host_abi,
       .profile_hash = pocket_profile.profile_hash,
       .launcher = pocketjs_package_app.data,

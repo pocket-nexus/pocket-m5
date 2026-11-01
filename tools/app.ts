@@ -1,5 +1,5 @@
-// Compiles an app for the profile of programs/m5stack-tab5 (tab5-home).
-//   bun run app build apps/worker-http/pocket.json [--runtime-config <path>]
+// Compiles an app for the host contract of programs/m5stack-tab5 (tab5-home).
+//   bun run app build apps/worker-http/pocket.app.json [--host-config <path>]
 // Packages land in .pocket-build/apps/<output>.pocket.
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -12,16 +12,16 @@ const option = (name: string) => {
   return index >= 0 ? rest[index + 1] : undefined;
 };
 const usage = () => {
-  console.error("usage: bun run app build <pocket.json> [--runtime-config <path>]");
+  console.error("usage: bun run app build <pocket.app.json> [--host-config <path>]");
   process.exit(2);
 };
 if (command !== "build" || !manifestArgument) usage();
 
-const runtimeConfig = option("--runtime-config") ? resolve(option("--runtime-config")!)
-  : join(root, "programs", "m5stack-tab5", "home.runtime-config.ts");
+const hostConfig = option("--host-config") ? resolve(option("--host-config")!)
+  : join(root, "programs", "m5stack-tab5", "pocket.host.config.ts");
 const frameworkRoot = process.env.POCKETJS_ROOT ?? join(root, "third_party", "pocketjs");
-if (!existsSync(runtimeConfig)) {
-  console.error(`no runtime config: ${runtimeConfig}`);
+if (!existsSync(hostConfig)) {
+  console.error(`no host config: ${hostConfig}`);
   process.exit(2);
 }
 const manifest = resolve(manifestArgument!);
@@ -31,7 +31,7 @@ const pocket = join(buildRoot, `${output}.pocket`);
 const compile = spawnSync(
   "bun",
   [join(frameworkRoot, "tools", "pocket.ts"), "compile",
-    "--manifest", manifest, "--runtime-config", runtimeConfig,
+    "--manifest", manifest, "--host-config", hostConfig,
     "--project-root", dirname(manifest), "--outdir", join(buildRoot, output),
     "--plan-dir", join(buildRoot, output, "plans"), "--output", pocket],
   { cwd: root, stdio: "inherit" },
