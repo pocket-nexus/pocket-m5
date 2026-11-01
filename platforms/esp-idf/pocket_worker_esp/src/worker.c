@@ -236,6 +236,9 @@ static void run(void *opaque) {
         .source = host->config.source,
         .source_size = host->config.source_size,
         .context = host,
+        .bytecode = host->config.bytecode,
+        .bytecode_size = host->config.bytecode_size,
+        .engine_abi = host->config.engine_abi,
         .wait = wait_until,
         .after_turn = drain_console,
         .start_paused = host->config.defer_turns};
@@ -293,9 +296,10 @@ static void run(void *opaque) {
 esp_err_t pocket_worker_esp_start(const pocket_worker_esp_config *config,
                                   pocket_worker_esp **out) {
   if (!config || config->struct_size < sizeof(*config) || !out ||
-      !config->source || !config->source_size || !config->heap_limit ||
-      !config->stack_limit || config->task_stack_size < 8192 ||
-      !config->generation ||
+      ((!config->source || !config->source_size) &&
+       (!config->bytecode || !config->bytecode_size)) ||
+      !config->heap_limit || !config->stack_limit ||
+      config->task_stack_size < 8192 || !config->generation ||
       (config->quota_micros && config->quota_micros > config->window_micros))
     return ESP_ERR_INVALID_ARG;
   *out = NULL;

@@ -132,6 +132,12 @@ void pocketjs_system_report_failure(const char *message);
  * long as the app. */
 bool pocketjs_system_app_worker(const pocketjs_system_app_t *app,
                                 const char **source, size_t *size);
+/** The worker bundle as a package bytecode section (section 9 of the
+ * admitted variant), or false without one. The bytes live as long as the
+ * app; the worker evaluates them when the envelope names its engine. */
+bool pocketjs_system_app_worker_bytecode(const pocketjs_system_app_t *app,
+                                         const uint8_t **envelope,
+                                         size_t *size);
 
 /** Callable from any task: the radio has an address. */
 bool pocketjs_system_online(void);

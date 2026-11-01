@@ -141,6 +141,7 @@ radio is assigned an address, so a new network synchronizes the clock within
 one exchange; lwIP then synchronizes every `CONFIG_LWIP_SNTP_UPDATE_DELAY` ms
 (one hour). The clock is UTC and backs `gettimeofday` and the guest's `Date`.
 `pocketjs_system_online` and `pocketjs_system_clock_wait` serve the program's
-HTTP node from any task; `pocketjs_system_app_worker` returns the worker
-source of an app (section 8 of the admitted variant, found by its variant
-hash), whose bytes live as long as the app.
+HTTP node from any task; `pocketjs_system_app_worker` and
+`pocketjs_system_app_worker_bytecode` return the worker source and the
+worker bytecode section of an app (sections 8 and 9 of the admitted variant,
+found by its variant hash), whose bytes live as long as the app.
