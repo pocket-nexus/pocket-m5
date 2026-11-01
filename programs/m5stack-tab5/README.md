@@ -175,7 +175,12 @@ contract builds source-only packages again.
 
 The baked font atlases of a package stay in the package as well: the
 runtime reads their coverage cells from flash where the package is, so the
-100 KiB to 900 KiB of glyphs an app carries no longer occupy PSRAM.
+100 KiB to 900 KiB of glyphs an app carries no longer occupy PSRAM. Its
+images are decoded into PSRAM when a frame first draws them, and the
+runtime keeps at most `TAB5_TEXTURE_BUDGET` (2 MiB) of them past a frame:
+beyond that, a frame releases the least recently drawn ones the previous
+frame did not draw, and decodes them from flash again when a frame draws
+them.
 
 The applets install from a paired Mac's catalog, and an app installs from an
 install QR code that Pocket Shell scans (`components/pocket_system`,
