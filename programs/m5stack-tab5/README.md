@@ -23,32 +23,63 @@ each app's `data.fs` tree, the Wi-Fi radio on the ESP32-C6 (esp_hosted) and
 the wall clock from SNTP. The build compiles Pocket Home from the
 pocket-shell submodule against `home.runtime-config.ts`, embeds it as the
 launcher and boots one runtime per app; SELECT from the home control returns
-to the launcher. `-DPOCKETJS_TAB5_HOME_PACKAGE=<package.pocket>` embeds a
-package compiled against the same profile instead. The
+to the launcher. The build also compiles the apps that
+`POCKETJS_TAB5_BUNDLED_APPS` lists (default `apps/tab5-demo;apps/worker-http`)
+and embeds them; `pocketjs_system_start` writes each into its store slot when
+the slot holds no package or one with another hash, so they are installed
+apps. `-DPOCKETJS_TAB5_HOME_PACKAGE=<package.pocket>` embeds a package
+compiled against the same profile in place of Pocket Home. The
 primary surface of the profile is laid out into a PSRAM buffer that nothing
 scans out. `pocket_idf_package_open` (the IDF archive) admits a stored package
 for the profile before the runtime boots it. `components/pocket_camera` serves
 `globalThis.camera` (the SC202CS on MIPI-CSI: a 320x240 preview at 15 fps,
 QR decoding, JPEG stills on the card) and `components/pocket_media` serves
 `globalThis.media` (the companion's stream on the ES8388 speaker) to a guest
-whose plan declares those capabilities.
+whose plan declares those capabilities. The camera's capture task runs on
+core 1 and opens the video device from a task on core 0: the CSI controller
+takes a DW-GDMA channel interrupt, and the DPI panel holds the DW-GDMA source
+on core 0 (a shared source routes to one core).
+
+`components/pocket_audio` owns both codecs on one I2S port at 44.1 kHz and
+serves `globalThis.audio` (`audio.pcm` streams mixed on the ES8388,
+`audio.capture` inputs from the ES7210: the two microphones, a headset
+microphone and the speaker loopback); the media stream plays through its
+mixer. `components/pocket_device` serves `globalThis.device`
+(`system.device`): backlight, speaker level, SoC temperature, the power rails
+and plug detection on the two PI4IOE5V6408 IO expanders, 22 free header pins,
+the card's directory listing and power off. At boot it sets the rails as
+M5Stack's vendor firmware does (battery and QC charging, USB-A 5V and EXT 5V
+on, the internal antenna) and starts the USB host that detects USB-A devices.
+The codecs and the USB host install from a task on core 1, so their
+interrupts are core 1's. The panel is read from the touch controller
+(ST7121, ST7123 or ILI9881C). `globalThis.wifi` also serves an open access
+point beside the station connection (APSTA), with an HTTP page at
+192.168.4.1.
 
 A UI realm has no network module. An app whose package carries a worker
 domain (`domains.worker`, package section 8) gets its own worker runtime
-(`pocket_worker_esp`) with one `http` node: `io.http` requests the Tab5 makes
-itself over Wi-Fi with `pocket_http_esp` (HTTPS with the ESP certificate
-bundle, mbedTLS buffers in PSRAM, certificate dates checked against the SNTP
-clock). The worker starts before the realm evaluates, its channels mirror into
-the realm once per frame (`before_tick`), and it stops before the realm and
-the package bytes are released. Its QuickJS heap (384 KiB) and its 24 KiB
-task stack are in PSRAM; it runs on core 1 at priority 3, below the render
-lane, and the two HTTP request tasks at priority 2. An app whose worker fails
-returns to the launcher with the failure shown. The
-`tab5-home` profile lists `runtime.worker` and `net.http`, so packages built
-against an earlier `tab5-home` must be rebuilt.
-`pocket_worker_esp` requires ESP-IDF 6.2.x. `apps/worker-http` is the device
-check: embedded with `POCKETJS_TAB5_HOME_PACKAGE` it joins a Wi-Fi network and
-fetches a URL once connected and on each tap.
+(`pocket_worker_esp`) with four nodes:
+
+| Node | Kind | Driver |
+| --- | --- | --- |
+| `http` | `http` | `pocket_http_esp`: HTTP and HTTPS the Tab5 makes over Wi-Fi (ESP certificate bundle, mbedTLS buffers in PSRAM, certificate dates checked against the SNTP clock) |
+| `sys` | `i2c` | `pocket_io_esp` on the BSP's system bus (G31 SDA, G32 SCL, 400 kHz): any address, shared with the board's drivers |
+| `porta` | `i2c` | `pocket_io_esp` software bus on Port A (G53 SDA, G54 SCL, 100 kHz), both hardware controllers being taken |
+| `rs485` | `uart` | `pocket_io_esp` on UART1 (TX G20, RX G21) in RS485 half duplex, driver enable on G34 |
+
+The worker starts before the realm evaluates, its channels mirror into the
+realm once per frame (`before_tick`), and it stops before the realm and the
+package bytes are released. Its QuickJS heap (1 MiB) and its 24 KiB task
+stack are in PSRAM; it runs on core 1 at priority 3, below the render lane,
+the I2C executors at 4 and the two HTTP request tasks at 2. An app whose
+worker fails returns to the launcher with the failure shown. The `tab5-home`
+profile lists `runtime.worker`, `net.http`, `io.i2c`, `io.uart`,
+`audio.pcm`, `audio.capture` and `system.device`, so packages built against
+an earlier `tab5-home` must be rebuilt.
+`pocket_worker_esp` requires ESP-IDF 6.2.x. `apps/worker-http` is the HTTP
+device check: it joins a Wi-Fi network and fetches a URL once connected and
+on each tap. `apps/tab5-demo`
+exercises the other nodes and services.
 
 A picture smaller than the screen sits between two equal black margins. The
 display moves retained pixels for content that only scrolled
@@ -104,8 +135,10 @@ the `riscv32imafc-unknown-none-elf` target. Pocket Home compiles with the
 pinned `third_party/pocketjs`, not with pocket-shell's own `vendor/pocketjs`,
 which the build does not need; its typecheck inherits
 `shells/3ds/tsconfig.json`, whose `bun-types` comes from the root
-`package.json`. The image with Pocket Home is 4.1 MiB of the 8 MiB `factory`
-partition. The log reports the frame rate every five seconds.
+`package.json`. The image with Pocket Home and the two bundled apps is
+6.1 MiB of the 8 MiB `factory` partition (Pocket Home alone 4.1 MiB); on
+first boot the card takes 3.1 s to store the 1.6 MiB demo and 0.6 s for
+`worker-http`. `-DPOCKETJS_TAB5_BUNDLED_APPS=` builds without them. The log reports the frame rate every five seconds.
 
 The applets install from a paired Mac's catalog. pocket-shell's
 `bun run tab5` and `bun run offer` compile them against this program's

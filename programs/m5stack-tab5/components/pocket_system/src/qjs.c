@@ -3,7 +3,8 @@
  * product publishes (products/3ds/src/qjs.c):
  *
  *   globalThis.link    contracts/spec/link.ts (link.c)
- *   globalThis.wifi    contracts/spec/wifi.ts (wifi.c)
+ *   globalThis.wifi    contracts/spec/wifi.ts (wifi.c), with the access
+ *                      point ops
  *   globalThis.fs      contracts/spec/fs.ts, when the guest's plan declares
  *                      data.fs (fs.c)
  *
@@ -35,6 +36,8 @@ enum {
   OP_WIFI_SCAN,
   OP_WIFI_JOIN,
   OP_WIFI_FORGET,
+  OP_WIFI_START_ACCESS_POINT,
+  OP_WIFI_STOP_ACCESS_POINT,
   OP_FS_READ,
   OP_FS_WRITE,
   OP_FS_REMOVE,
@@ -167,6 +170,13 @@ static void perform(void *argument) {
   case OP_WIFI_FORGET:
     bool_result(r, wifi_forget(r->number));
     break;
+  case OP_WIFI_START_ACCESS_POINT:
+    bool_result(r,
+                r->text != NULL && wifi_start_access_point(r->text, r->length));
+    break;
+  case OP_WIFI_STOP_ACCESS_POINT:
+    bool_result(r, wifi_stop_access_point());
+    break;
   case OP_FS_READ:
     fs_result(r, fs_read(r->text, r->length, r->first_float, r->second_float));
     break;
@@ -211,6 +221,7 @@ static JSValue operation(JSContext *ctx, JSValueConst this_value, int argc,
   case OP_LINK_INSTALL:
   case OP_FS_STAT:
   case OP_FS_MKDIR:
+  case OP_WIFI_START_ACCESS_POINT:
     request.text = argument_text(ctx, argc, argv, 0, &request.length);
     break;
   case OP_WIFI_CONNECT:
@@ -288,6 +299,8 @@ esp_err_t system_qjs_install(JSContext *ctx) {
   add(ctx, wifi, "scan", 0, OP_WIFI_SCAN);
   add(ctx, wifi, "join", 2, OP_WIFI_JOIN);
   add(ctx, wifi, "forget", 1, OP_WIFI_FORGET);
+  add(ctx, wifi, "startAccessPoint", 1, OP_WIFI_START_ACCESS_POINT);
+  add(ctx, wifi, "stopAccessPoint", 0, OP_WIFI_STOP_ACCESS_POINT);
   JS_SetPropertyStr(ctx, global, "wifi", wifi);
 
   /* Only a guest whose plan declares data.fs has a bound tree. */

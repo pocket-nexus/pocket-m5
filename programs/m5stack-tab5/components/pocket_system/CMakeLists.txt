@@ -18,7 +18,7 @@ idf_component_register(
     INCLUDE_DIRS "include"
     PRIV_INCLUDE_DIRS "src" "${shared}"
     REQUIRES pocket_runtime pocket_guest_quickjs
-    PRIV_REQUIRES esp_event esp_netif esp_timer esp_wifi fatfs log lwip nvs_flash vfs wear_levelling
+    PRIV_REQUIRES esp_event esp_http_server esp_netif esp_timer esp_wifi fatfs log lwip nvs_flash vfs wear_levelling
     REQUIRED_IDF_TARGETS esp32p4
 )
 

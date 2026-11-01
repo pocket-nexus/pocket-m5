@@ -15,23 +15,27 @@ pocket-m5/
 │  └─ pocket-shell/             Pocket Home and the applets pinned to a commit (submodule)
 ├─ platforms/esp-idf/           ESP-IDF components owned by this repository
 │  ├─ pocket_worker_esp/        FreeRTOS owner of the PocketJS worker core
-│  └─ pocket_http_esp/          worker http node over esp_http_client
+│  ├─ pocket_http_esp/          worker http node over esp_http_client
+│  └─ pocket_io_esp/            worker i2c and uart nodes
 ├─ programs/
 │  └─ m5stack-tab5/             IDF project: main, runtime config, profile, sdkconfig, partitions
-│     ├─ components/            pocket_system, pocket_camera, pocket_media (this program only)
+│     ├─ components/            pocket_system, pocket_camera, pocket_media, pocket_audio,
+│     │                         pocket_device (this program only)
 │     └─ profile.ts             tab5-home: 640x360 auxiliary surface, presented at 2x
 ├─ apps/
-│  └─ worker-http/              worker HTTP check for programs/m5stack-tab5
-├─ tests/                       host test of the HTTP record parser
-├─ tools/                       pocket CLI wrapper, app packaging, formatter, host tests
+│  ├─ worker-http/              worker HTTP check for programs/m5stack-tab5
+│  └─ tab5-demo/                the Tab5 factory launcher (M5Tab5-UserDemo) on PocketJS
+├─ tests/                       host tests: HTTP record, I2C descriptors, sensor drivers
+├─ tools/                       pocket CLI wrapper, app packaging, formatter, host tests,
+│                               tab5-demo artwork conversion
 └─ docs/                        repository and worker reference
 ```
 
 ## Ownership
 
-**PocketJS adapters are board-independent.** `pocket_worker_esp` and
-`pocket_http_esp` implement the worker host and its `http` node against
-ESP-IDF APIs. They take their configuration from the program, not from a
+**PocketJS adapters are board-independent.** `pocket_worker_esp`,
+`pocket_http_esp` and `pocket_io_esp` implement the worker host and its
+`http`, `i2c` and `uart` nodes against ESP-IDF APIs. They take their configuration from the program, not from a
 board. A board support component for one board would go in
 `platforms/esp-idf/m5_bsp_<board>/`.
 
@@ -45,8 +49,9 @@ compiles Pocket Home (`third_party/pocket-shell/shells/3ds/home`) against the
 same profile.
 
 **Components one program uses stay with that program.**
-`programs/m5stack-tab5/components/` holds the launcher services, camera and
-media components of that firmware. It builds on board-independent drivers
+`programs/m5stack-tab5/components/` holds the launcher services, camera,
+media, audio (`audio.pcm`, `audio.capture`) and device (`system.device`)
+components of that firmware. It builds on board-independent drivers
 from the submodule (`pocket_display_esp_dpi`, `pocket_render_esp_ppa` with
 its two-lane factory, `pocket_runner`); it reads the microSD card over SDSPI
 because the ESP32-C6 radio takes the SDMMC controller.

@@ -6,8 +6,11 @@ import { defineProfile } from "@pocketjs/framework/profile";
  * presents at 2x over the whole 1280x720 screen; the primary surface stays
  * off screen. A home control the program draws sends SELECT; the Tab5
  * keyboard on Ext.Port1, when one is attached, sends text events. An app's
- * worker domain gets an `http` node: HTTP and HTTPS from the Tab5 over its
- * Wi-Fi radio.
+ * worker domain gets an `http` node (HTTP and HTTPS from the Tab5 over its
+ * Wi-Fi radio), the `sys` and `porta` I2C nodes (the system bus and Port A)
+ * and the `rs485` UART node. `globalThis.device` sets the backlight, the
+ * speaker level, the power rails and header pins; `globalThis.audio` plays
+ * PCM streams on the speaker and records the microphones.
  */
 export default defineProfile({
   id: "tab5-home",
@@ -40,5 +43,10 @@ export default defineProfile({
     "media.playback",
     "runtime.worker",
     "net.http",
+    "io.i2c",
+    "io.uart",
+    "audio.pcm",
+    "audio.capture",
+    "system.device",
   ],
 });

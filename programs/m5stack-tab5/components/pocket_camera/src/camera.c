@@ -293,6 +293,47 @@ static bool start_stream(int fd, uint32_t *width, uint32_t *height,
   return ioctl(fd, VIDIOC_STREAMON, &type) == 0;
 }
 
+/* The device open and STREAMON, run on core 0: the CSI controller takes a
+ * DW-GDMA channel interrupt there, where the DPI panel already holds the
+ * DW-GDMA source (a shared source routes to one core). */
+typedef struct {
+  int fd;
+  bool started;
+  uint32_t width, height;
+  uint8_t **buffers;
+  size_t *lengths;
+  SemaphoreHandle_t done;
+} stream_start_t;
+
+static void stream_start_run(void *argument) {
+  stream_start_t *start = argument;
+  start->fd = open(board.device, O_RDONLY);
+  start->started =
+      start->fd >= 0 && start_stream(start->fd, &start->width, &start->height,
+                                     start->buffers, start->lengths);
+  xSemaphoreGive(start->done);
+  vTaskDelete(NULL);
+}
+
+static int open_stream(uint32_t *width, uint32_t *height, uint8_t **buffers,
+                       size_t *lengths, bool *started) {
+  stream_start_t start = {.fd = -1,
+                          .buffers = buffers,
+                          .lengths = lengths,
+                          .done = xSemaphoreCreateBinary()};
+  *started = false;
+  if (start.done == NULL)
+    return -1;
+  if (xTaskCreatePinnedToCore(stream_start_run, "pocketjs_csi", 4096, &start, 4,
+                              NULL, 0) == pdPASS)
+    xSemaphoreTake(start.done, portMAX_DELAY);
+  vSemaphoreDelete(start.done);
+  *width = start.width;
+  *height = start.height;
+  *started = start.started;
+  return start.fd;
+}
+
 static void capture_run(void *argument) {
   (void)argument;
   ppa_client_handle_t client = NULL;
@@ -300,13 +341,14 @@ static void capture_run(void *argument) {
       .oper_type = PPA_OPERATION_SRM,
       .max_pending_trans_num = 1,
   };
-  int fd = open(board.device, O_RDONLY);
   uint8_t *buffers[VIDEO_BUFFERS] = {0};
   size_t lengths[VIDEO_BUFFERS] = {0};
   uint32_t width = 0, height = 0;
+  bool started = false;
+  const int fd = open_stream(&width, &height, buffers, lengths, &started);
   transform_t preview;
   if (fd < 0 || ppa_register_client(&client_config, &client) != ESP_OK ||
-      !start_stream(fd, &width, &height, buffers, lengths) ||
+      !started ||
       !plan_transform(width, height, CAMERA_WIDTH, CAMERA_HEIGHT, &preview)) {
     snprintf(error, sizeof error, "the camera did not start (%s %lux%lu)",
              board.device, (unsigned long)width, (unsigned long)height);

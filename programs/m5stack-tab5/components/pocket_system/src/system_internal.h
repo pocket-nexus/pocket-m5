@@ -18,6 +18,9 @@ bool wifi_scan(void);
 bool wifi_join(const char *ssid, size_t ssid_length, const char *passphrase,
                size_t passphrase_length);
 bool wifi_forget(int slot);
+/* An open access point beside the station, with an HTTP page. */
+bool wifi_start_access_point(const char *ssid, size_t ssid_length);
+bool wifi_stop_access_point(void);
 /* An address is assigned: sockets reach the LAN. */
 bool wifi_online(void);
 void wifi_address(char *out, size_t capacity);

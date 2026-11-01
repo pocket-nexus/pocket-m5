@@ -11,12 +11,15 @@ Link and switches between them on the device.
 
 [`programs/m5stack-tab5`](programs/m5stack-tab5/README.md) is the Tab5
 firmware: Pocket Home 640×360 at 2x, turned onto the panel; installs over the
-Pocket Link; a floating home ball; Wi-Fi, SNTP clock, worker HTTP, camera,
-media and keyboard. Pocket Home and the applets come from
-[pocket-shell](https://github.com/pocket-nexus/pocket-shell), pinned as the
-`third_party/pocket-shell` submodule; the firmware build compiles Pocket Home
-from it. App workers get an `http` node (`pocket_http_esp`); see
-[Worker domain](docs/WORKER.md).
+Pocket Link; a floating home ball; Wi-Fi with an optional access point,
+SNTP clock, worker HTTP, I2C and RS485 nodes, camera, media, PCM audio and
+microphones, board controls and keyboard. Pocket Home and the applets come
+from [pocket-shell](https://github.com/pocket-nexus/pocket-shell), pinned as
+the `third_party/pocket-shell` submodule; the firmware build compiles Pocket
+Home from it. App workers get an `http` node (`pocket_http_esp`) and `i2c` and
+`uart` nodes (`pocket_io_esp`); see [Worker domain](docs/WORKER.md).
+[`apps/tab5-demo`](apps/tab5-demo/README.md) is the Tab5 factory firmware's
+launcher (M5Tab5-UserDemo) on PocketJS.
 
 ## Requirements
 
@@ -45,11 +48,12 @@ idf.py -p <port> flash monitor
 The build does not use pocket-shell's own `vendor/pocketjs` submodule, so the
 command above initializes the two submodules without `--recursive`.
 
-Pair the Tab5 with a Mac in Pocket Home's Settings; the applets install from
-the Mac's catalog (pocket-shell's `bun run offer` with Pocket Companion
-running). The home ball returns to Pocket Home. `bun run app build
-<pocket.json>` compiles an app of this repository for the firmware's profile
-into `.pocket-build/apps/`.
+The firmware embeds this repository's apps (`apps/tab5-demo`,
+`apps/worker-http`) and installs them at boot, so Pocket Home lists them
+without a companion; applets from a paired Mac's catalog (pocket-shell's
+`bun run offer` with Pocket Companion running) install beside them. The home
+ball returns to Pocket Home. `bun run app build <pocket.json>` compiles an
+app of this repository for the firmware's profile into `.pocket-build/apps/`.
 
 ## Documentation
 
@@ -61,12 +65,20 @@ into `.pocket-build/apps/`.
 
 ## Pinned dependencies
 
-`third_party/pocketjs` is pinned to a commit on pocketjs `main` and tracks
-that branch. `main` carries the platform, engine and framework changes of
-pocket-nexus/pocketjs#616 that `programs/m5stack-tab5` needs, merged through
-pocket-nexus/pocketjs#617, and the worker runtime in `engine/worker` that
-`pocket_worker_esp` builds, merged through pocket-nexus/pocketjs#623. The
-driver contracts and directory layout come from pocket-nexus/pocketjs#603.
+`third_party/pocketjs` is pinned to the `tab5-device-66e39a0f` branch: five
+commits on pocketjs `main` at `66e39a0f` that add the `system.device` and
+`audio.capture` modules, the Wi-Fi access point ops, the package feature
+bits the ESP-IDF archive reports for them and the I2C probe opcode, and
+re-arm the worker scheduler's host timer after a timer fact. The same
+commits, rebased onto pocketjs's host-facts admission
+(pocket-nexus/pocketjs#631), are under review as pocket-nexus/pocketjs#635;
+this repository and pocket-shell still use the profile-hash admission that
+#631 replaced, so the pin stays on the pre-rebase branch. `main` carries the
+platform, engine and framework changes of pocket-nexus/pocketjs#616 that
+`programs/m5stack-tab5` needs, merged through pocket-nexus/pocketjs#617, and
+the worker runtime in `engine/worker` that `pocket_worker_esp` builds,
+merged through pocket-nexus/pocketjs#623. The driver contracts and directory
+layout come from pocket-nexus/pocketjs#603.
 
 `third_party/pocket-shell` is pinned to a commit on pocket-shell `main`.
 The firmware compiles `shells/3ds/home` from it with the pinned pocketjs.
