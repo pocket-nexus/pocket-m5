@@ -49,7 +49,7 @@ idf.py -p <port> flash monitor
 ```
 
 The firmware embeds this repository's apps (`apps/tab5-demo`,
-`apps/worker-http`) and installs them at boot, so Pocket Home lists them
+`apps/worker-http`, `apps/unit-swap`) and installs them at boot, so Pocket Home lists them
 without a companion; applets from a paired Mac's catalog (pocket-shell's
 `bun run offer` with Pocket Companion running) install beside them. The home
 ball returns to Pocket Home. `bun run app build <pocket.app.json>` compiles
