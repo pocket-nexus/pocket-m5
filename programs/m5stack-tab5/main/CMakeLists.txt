@@ -24,10 +24,10 @@ idf_component_register(
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wall -Wextra -Werror)
 
-# The launcher is Pocket Home, compiled from the pocket-shell submodule
-# against home.runtime-config.ts. A package compiled against the same
-# profile replaces it.
-set(POCKETJS_TAB5_HOME_PACKAGE "" CACHE FILEPATH "Launcher package to embed instead of the submodule's Pocket Home")
+# The launcher is Pocket Home (apps/pocket-home), compiled against
+# home.runtime-config.ts. A package compiled against the same profile
+# replaces it.
+set(POCKETJS_TAB5_HOME_PACKAGE "" CACHE FILEPATH "Launcher package to embed instead of apps/pocket-home")
 if(POCKETJS_TAB5_HOME_PACKAGE)
     pocketjs_embed_package(
         TARGET ${COMPONENT_LIB}
@@ -35,16 +35,11 @@ if(POCKETJS_TAB5_HOME_PACKAGE)
         PACKAGE "${POCKETJS_TAB5_HOME_PACKAGE}"
         RUNTIME_CONFIG "../home.runtime-config.ts")
 else()
-    set(pocket_shell_3ds "../../../third_party/pocket-shell/shells/3ds")
-    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${pocket_shell_3ds}/home/pocket.json")
-        message(FATAL_ERROR "third_party/pocket-shell is not checked out: git submodule update --init third_party/pocket-shell")
-    endif()
     pocketjs_compile_app(
         TARGET ${COMPONENT_LIB}
         NAME app
-        MANIFEST "${pocket_shell_3ds}/home/pocket.json"
-        RUNTIME_CONFIG "../home.runtime-config.ts"
-        PROJECT_ROOT "${pocket_shell_3ds}")
+        MANIFEST "../../../apps/pocket-home/pocket.json"
+        RUNTIME_CONFIG "../home.runtime-config.ts")
 endif()
 
 # Local apps the firmware installs at boot (pocket_system's bundled
