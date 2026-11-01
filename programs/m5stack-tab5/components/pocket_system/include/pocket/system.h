@@ -43,9 +43,13 @@ typedef struct {
 
 typedef struct {
   size_t struct_size;
-  /** The profile the firmware runs: installs must carry a variant for it. */
+  /** The host id the Pocket Link reports to a companion. */
   const char *target;
+  /** The host facts packages are admitted against (pocket_profile.facts):
+   * a package boots its first variant the facts satisfy. */
+  const pocket_profile_facts *facts;
   uint32_t host_abi;
+  /** 32 bytes or NULL: orders the variants admission tries. */
   const uint8_t *profile_hash;
   /** The launcher package the firmware embeds. */
   const void *launcher;
@@ -115,9 +119,9 @@ bool pocketjs_system_launcher_running(void);
 /** The running app failed: the launcher shows `message` once. */
 void pocketjs_system_report_failure(const char *message);
 
-/** The worker source of an app (package section 8 of its variant for the
- * firmware's profile), or false when it declares no worker domain. The
- * bytes live as long as the app. */
+/** The worker source of an app (package section 8 of its admitted
+ * variant), or false when it declares no worker domain. The bytes live as
+ * long as the app. */
 bool pocketjs_system_app_worker(const pocketjs_system_app_t *app,
                                 const char **source, size_t *size);
 

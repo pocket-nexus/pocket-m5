@@ -2,7 +2,6 @@
   "$schema": "https://pocketjs.dev/schema/pocket-2.json",
   "pocket": 2,
   "id": "dev.pocket-nexus.m5.tab5-demo",
-  "name": "m5-tab5-demo",
   "title": "Tab5 Demo",
   "version": "0.1.0",
   "engine": {
@@ -26,6 +25,7 @@
     "entry": "main.tsx",
     "output": "tab5-demo",
     "framework": "solid",
+    "tickHz": 30,
     "surfaces": {
       "auxiliary": {
         "fixed": {

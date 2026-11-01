@@ -23,8 +23,10 @@ switching between them, the Pocket Link to a paired companion, a guest's
 
 `<slot>` is the first 16 hex digits of SHA-256 of the app id. An install
 streams into `apps/<slot>/link-upload.pocket`, is admitted
-(`pocket_idf_package_open`: footer, FNV-1a64, a variant for the firmware's
-profile and binding generation) and replaces `package.pocket`. The
+(`pocket_idf_package_open`: footer, FNV-1a64, then the first variant the
+firmware's host facts satisfy: binding generation, raster density, animation
+class, tick rate, viewport, presentation, capabilities and auxiliary surface)
+and replaces `package.pocket`. The
 `bundled` packages of `pocketjs_system_config_t`, embedded in the firmware,
 take the same path at start: each is admitted, written to
 `link-upload.pocket` and renamed onto `package.pocket`, and the launcher's
@@ -73,5 +75,5 @@ one exchange; lwIP then synchronizes every `CONFIG_LWIP_SNTP_UPDATE_DELAY` ms
 (one hour). The clock is UTC and backs `gettimeofday` and the guest's `Date`.
 `pocketjs_system_online` and `pocketjs_system_clock_wait` serve the program's
 HTTP node from any task; `pocketjs_system_app_worker` returns the worker
-source of an app (section 8 of the variant for the firmware's target, binding
-generation and profile), whose bytes live as long as the app.
+source of an app (section 8 of the admitted variant, found by its variant
+hash), whose bytes live as long as the app.

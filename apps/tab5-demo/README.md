@@ -2,7 +2,7 @@
 
 The launcher of M5Stack's
 [M5Tab5-UserDemo](https://github.com/m5stack/M5Tab5-UserDemo), the Tab5's
-factory firmware, on PocketJS, for `programs/m5stack-tab5` (profile
+factory firmware, on PocketJS, for `programs/m5stack-tab5` (host
 `tab5-home`, 640×360 auxiliary surface presented at 2x). The factory block
 diagram is the background picture; live values, switch states and plug
 arrows are drawn over it where the factory firmware draws them, and its
@@ -76,7 +76,7 @@ its own and embedded as the home package, the demo runs in place of Pocket
 Home and the home ball has nothing to return to:
 
 ```sh
-bun run app build apps/tab5-demo/pocket.json
+bun run app build apps/tab5-demo/pocket.app.json
 idf.py -C programs/m5stack-tab5 \
   -DPOCKETJS_TAB5_HOME_PACKAGE=$PWD/.pocket-build/apps/tab5-demo.pocket build
 ```

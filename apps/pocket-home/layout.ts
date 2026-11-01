@@ -16,7 +16,7 @@
 // dock while it has room, everything else to the first page with room).
 //
 // Storage is the fs module (contracts/spec/fs.ts, capability data.fs, an
-// enhancement in pocket.json): one small JSON file in Home's data root.
+// enhancement in pocket.app.json): one small JSON file in Home's data root.
 // A host without it keeps the order for the session only.
 
 import { existsSync, readFileSync, writeFileSync } from "@pocketjs/framework/fs";

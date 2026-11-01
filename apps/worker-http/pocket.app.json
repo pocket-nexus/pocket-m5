@@ -2,7 +2,6 @@
   "$schema": "https://pocketjs.dev/schema/pocket-2.json",
   "pocket": 2,
   "id": "dev.pocket-nexus.m5.worker-http",
-  "name": "m5-worker-http",
   "title": "Worker HTTP",
   "version": "0.1.0",
   "engine": {
@@ -21,6 +20,7 @@
     "entry": "main.tsx",
     "output": "worker-http",
     "framework": "solid",
+    "tickHz": 30,
     "surfaces": {
       "auxiliary": {
         "fixed": {

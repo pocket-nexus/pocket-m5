@@ -2,8 +2,8 @@
 
 The launcher of `programs/m5stack-tab5`: the springboard of installed apps,
 Settings (Wi-Fi, Mac pairing by QR code, the paired Mac's app catalog) and
-the clock. The firmware compiles this directory against
-`programs/m5stack-tab5/home.runtime-config.ts` and embeds it as the launcher
+the clock. The firmware compiles this directory with
+`programs/m5stack-tab5/pocket.host.config.ts` and embeds it as the launcher
 package; the floating home ball returns to it.
 
 The code comes from
@@ -16,6 +16,7 @@ longer pins pocket-shell; changes to the launcher land here.
 | --- | --- |
 | Package id | `dev.pocket-nexus.home` (its slot and `data.fs` tree are the same as before the move) |
 | Output | `home-main` |
+| Tick rate | 30 Hz (`app.tickHz`), the Tab5's cadence |
 | Surface | adaptive auxiliary, 320×240 to 640×720; 640×360 on the Tab5, presented at 2x |
 
 ## Files

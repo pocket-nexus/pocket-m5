@@ -57,12 +57,12 @@ Architecture and implementation notes belong in `docs/`, not here.
 
 - Board support for one board: `platforms/esp-idf/m5_bsp_<board>/`.
 - Drivers implementing PocketJS contracts: `platforms/esp-idf/pocket_<name>/`.
-- Firmware composition, `sdkconfig.defaults`, partitions, runtime configs and
-  the program's own profiles (`profile.ts`, or `profiles/` for several):
-  `programs/<program>/`. A profile shared by several programs goes in
-  `profiles/<profile-id>.ts`.
+- Firmware composition, `sdkconfig.defaults`, partitions, the host config
+  (`pocket.host.config.ts`) and the program's own host contract
+  (`pocket.host.json`): `programs/<program>/`. A host contract shared by
+  several programs goes in `hosts/<host-id>/pocket.host.json`.
 - Components that only one program uses: `programs/<program>/components/`.
-- Apps: `apps/<name>/` with a `pocket.json`.
+- Apps: `apps/<name>/` with a `pocket.app.json`.
 - Build, packaging and repository scripts: `tools/`.
 
 ## C code

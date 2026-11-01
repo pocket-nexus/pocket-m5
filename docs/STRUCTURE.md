@@ -4,8 +4,8 @@ This repository builds PocketJS firmware for M5Stack boards. It consumes
 PocketJS as the `third_party/pocketjs` submodule and follows the directory
 split of pocketjs `main` (pocket-nexus/pocketjs#603): **platforms** hold SDK
 and board drivers, and **programs** compose drivers into firmware with a
-runtime config and the **profile**, the software contract apps compile
-against. The launcher, Pocket Home, is `apps/pocket-home`.
+host config and the **host contract** (`pocket.host.json`), the facts apps
+compile and are admitted against. The launcher, Pocket Home, is `apps/pocket-home`.
 
 ```text
 pocket-m5/
@@ -16,10 +16,10 @@ pocket-m5/
 │  ├─ pocket_http_esp/          worker http node over esp_http_client
 │  └─ pocket_io_esp/            worker i2c and uart nodes
 ├─ programs/
-│  └─ m5stack-tab5/             IDF project: main, runtime config, profile, sdkconfig, partitions
+│  └─ m5stack-tab5/             IDF project: main, host config and contract, sdkconfig, partitions
 │     ├─ components/            pocket_system, pocket_camera, pocket_media, pocket_audio,
 │     │                         pocket_device (this program only)
-│     └─ profile.ts             tab5-home: 640x360 auxiliary surface, presented at 2x
+│     └─ pocket.host.json       tab5-home: 640x360 auxiliary surface, presented at 2x
 ├─ apps/
 │  ├─ pocket-home/              the launcher, from pocket-shell's shells/3ds/home
 │  ├─ worker-http/              worker HTTP check for programs/m5stack-tab5
@@ -42,10 +42,11 @@ board. A board support component for one board would go in
 **The program composes and configures.** `programs/m5stack-tab5/main/main.c`
 brings up the board through Espressif's `m5stack_tab5_noglib` BSP, creates the
 display, input and renderers, starts the launcher services and boots one
-runtime per app. The program owns its profile (`profile.ts`);
-`home.runtime-config.ts` imports it. The build exports `pocket_profile.h`,
-whose `pocket_profile.facts` record the runtime admits packages against, and
-compiles Pocket Home (`apps/pocket-home`) against the same profile.
+runtime per app. The program owns its host contract (`pocket.host.json`);
+the host config `pocket.host.config.ts` names it. The build exports
+`pocket_profile.h`, whose `pocket_profile.facts` record the runtime admits
+packages against, and compiles Pocket Home (`apps/pocket-home`) and the
+bundled apps with the same host config.
 
 **Components one program uses stay with that program.**
 `programs/m5stack-tab5/components/` holds the launcher services, camera,
@@ -55,9 +56,13 @@ from the submodule (`pocket_display_esp_dpi`, `pocket_render_esp_ppa` with
 its two-lane factory, `pocket_runner`); it reads the microSD card over SDSPI
 because the ESP32-C6 radio takes the SDMMC controller.
 
-**The profile is the app contract.** Every installed package carries a variant
-whose profile hash equals the program's. Changing any hashed profile field
-requires rebuilding every app, Pocket Home included.
+**The host contract admits apps by facts.** A package boots its first variant
+whose binding generation, raster density, animation class, tick rate,
+viewport, presentation, capabilities and auxiliary surface the host contract
+provides (pocket-nexus/pocketjs#631); the profile hash only orders variants.
+A package compiled for another host with the same facts installs, and a
+change to the contract that removes a fact an app uses refuses that app until
+it is rebuilt. Each app states `app.tickHz` 30, the Tab5's one cadence.
 
 ## Upstream components
 

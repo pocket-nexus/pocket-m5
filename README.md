@@ -50,33 +50,31 @@ The firmware embeds this repository's apps (`apps/tab5-demo`,
 `apps/worker-http`) and installs them at boot, so Pocket Home lists them
 without a companion; applets from a paired Mac's catalog (pocket-shell's
 `bun run offer` with Pocket Companion running) install beside them. The home
-ball returns to Pocket Home. `bun run app build <pocket.json>` compiles an
-app of this repository for the firmware's profile into `.pocket-build/apps/`.
+ball returns to Pocket Home. `bun run app build <pocket.app.json>` compiles
+an app of this repository with the firmware's host config into
+`.pocket-build/apps/`.
 
 ## Documentation
 
 - [Repository structure](docs/STRUCTURE.md)
-- [M5Stack Tab5 firmware](programs/m5stack-tab5/README.md): profile,
+- [M5Stack Tab5 firmware](programs/m5stack-tab5/README.md): host contract,
   presentation, launcher services, home ball, keyboard
 - [Worker domain](docs/WORKER.md): worker runtime, HTTP node and validation
 - [Engineering conventions](AGENTS.md): commits, formatting, dependencies
 
 ## Pinned dependencies
 
-`third_party/pocketjs` is pinned to the `tab5-device-66e39a0f` branch: five
-commits on pocketjs `main` at `66e39a0f` that add the `system.device` and
-`audio.capture` modules, the Wi-Fi access point ops, the package feature
-bits the ESP-IDF archive reports for them and the I2C probe opcode, and
-re-arm the worker scheduler's host timer after a timer fact. The same
-commits, rebased onto pocketjs's host-facts admission
-(pocket-nexus/pocketjs#631), are under review as pocket-nexus/pocketjs#635;
-this repository still uses the profile-hash admission that #631 replaced, so
-the pin stays on the pre-rebase branch. `main` carries the platform, engine
-and framework changes of pocket-nexus/pocketjs#616 that `programs/m5stack-tab5`
-needs, merged through pocket-nexus/pocketjs#617, and the worker runtime in
-`engine/worker` that `pocket_worker_esp` builds, merged through
-pocket-nexus/pocketjs#623. The driver contracts and directory layout come from
-pocket-nexus/pocketjs#603.
+`third_party/pocketjs` is pinned to a commit on pocketjs `main`. It
+includes the host-facts admission, host contracts and app contracts of
+pocket-nexus/pocketjs#631, and pocket-nexus/pocketjs#635, which adds the
+`system.device` and `audio.capture` modules, the Wi-Fi access point ops, the
+package feature bits the ESP-IDF archive reports for them and the I2C probe
+opcode, and re-arms the worker scheduler's host timer after a timer fact.
+`main` carries the platform, engine and framework changes of
+pocket-nexus/pocketjs#616 that `programs/m5stack-tab5` needs, merged through
+pocket-nexus/pocketjs#617, and the worker runtime in `engine/worker` that
+`pocket_worker_esp` builds, merged through pocket-nexus/pocketjs#623. The
+driver contracts and directory layout come from pocket-nexus/pocketjs#603.
 
 ## License
 

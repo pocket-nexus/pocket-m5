@@ -6,32 +6,39 @@ composes the runtime with `pocket_guest_quickjs`, two `pocket_render_esp_ppa`
 renderers split across the cores (`pocketjs_esp32p4_ppa_lanes`), the
 `pocket_display_esp_dpi` output and `pocket_runner`. Those components, the
 IDF archive and `engine/host-services` come from `third_party/pocketjs`; the
-program, its components and its profile live here.
+program, its components and its host contract live here.
 
 The program was imported from pocket-nexus/pocketjs#616 (`df0d434a`), whose
 platform and engine changes reached pocketjs `main` through
 pocket-nexus/pocketjs#617.
 
-| Profile | Launcher | Picture |
+| Host contract | Launcher | Picture |
 | --- | --- | --- |
-| `tab5-home` (`profile.ts`, through `home.runtime-config.ts`) | Pocket Home from `apps/pocket-home` | the auxiliary surface, 640x360 at raster density 1, turned and presented at 2x |
+| `tab5-home` (`pocket.host.json`, through `pocket.host.config.ts`) | Pocket Home from `apps/pocket-home` | the auxiliary surface, 640x360 at raster density 1, turned and presented at 2x |
+
+`pocket.host.json` (format `pocket-host/2`) states the facts: one cadence,
+30 Hz; a 400x240 primary viewport and the 640x360 auxiliary surface, both
+`native` at raster density 1; animation class `repaint`; the capabilities;
+and a worker table of one `http`, two `i2c` and one `uart` node, the nodes
+`main.c` gives every app's worker domain.
 
 The firmware is a launcher console: `components/pocket_system`
 keeps a store of installed apps on the microSD card (SDSPI; the `storage`
 flash partition without a card), the Pocket Link to a paired companion,
 each app's `data.fs` tree, the Wi-Fi radio on the ESP32-C6 (esp_hosted) and
 the wall clock from SNTP. The build compiles Pocket Home
-(`apps/pocket-home`) against `home.runtime-config.ts`, embeds it as the
+(`apps/pocket-home`) with `pocket.host.config.ts`, embeds it as the
 launcher and boots one runtime per app; SELECT from the home control returns
 to the launcher. The build also compiles the apps that
 `POCKETJS_TAB5_BUNDLED_APPS` lists (default `apps/tab5-demo;apps/worker-http`)
 and embeds them; `pocketjs_system_start` writes each into its store slot when
 the slot holds no package or one with another hash, so they are installed
 apps. `-DPOCKETJS_TAB5_HOME_PACKAGE=<package.pocket>` embeds a package
-compiled against the same profile in place of Pocket Home. The
-primary surface of the profile is laid out into a PSRAM buffer that nothing
-scans out. `pocket_idf_package_open` (the IDF archive) admits a stored package
-for the profile before the runtime boots it. `components/pocket_camera` serves
+the host contract admits in place of Pocket Home. The primary surface is
+laid out into a PSRAM buffer that nothing scans out.
+`pocket_idf_package_open` (the IDF archive) admits a stored package by the
+exported host facts (`pocket_profile.facts`) before the runtime boots it, and
+`pocket_runner` ticks at the cadence the runtime reports for it. `components/pocket_camera` serves
 `globalThis.camera` (the SC202CS on MIPI-CSI: a 320x240 preview at 15 fps,
 QR decoding, JPEG stills on the card) and `components/pocket_media` serves
 `globalThis.media` (the companion's stream on the ES8388 speaker) to a guest
@@ -73,9 +80,8 @@ package bytes are released. Its QuickJS heap (1 MiB) and its 24 KiB task
 stack are in PSRAM; it runs on core 1 at priority 3, below the render lane,
 the I2C executors at 4 and the two HTTP request tasks at 2. An app whose
 worker fails returns to the launcher with the failure shown. The `tab5-home`
-profile lists `runtime.worker`, `net.http`, `io.i2c`, `io.uart`,
-`audio.pcm`, `audio.capture` and `system.device`, so packages built against
-an earlier `tab5-home` must be rebuilt.
+host contract lists `runtime.worker`, `net.http`, `io.i2c`, `io.uart`,
+`audio.pcm`, `audio.capture` and `system.device`.
 `pocket_worker_esp` requires ESP-IDF 6.2.x. `apps/worker-http` is the HTTP
 device check: it joins a Wi-Fi network and fetches a URL once connected and
 on each tap. `apps/tab5-demo`
@@ -106,7 +112,7 @@ its direction (`ball gesture: up`) where an effect attaches later.
 The Tab5 keyboard (M5Stack A164, `tab5_keyboard.c`) answers at I2C address
 0x6D on Ext.Port1 (SDA GPIO 0, SCL GPIO 1, the program's second I2C bus).
 The input source declares the TEXT class with or without a keyboard, so the
-Home profile's `input.text` holds and the firmware boots without one. The
+host contract's `input.text` holds and the firmware boots without one. The
 program probes the bus for a keyboard at boot and every two seconds while
 none answers, and lets one go after three polls it does not answer, so the
 keyboard plugs in and out without a reboot. Each poll drains the keyboard's
@@ -137,11 +143,10 @@ Pocket Home alone 4.1 MiB); on first boot the card takes 3.1 s to store the
 1.6 MiB demo and 0.6 s for `worker-http`. `-DPOCKETJS_TAB5_BUNDLED_APPS=`
 builds without them. The log reports the frame rate every five seconds.
 
-The applets install from a paired Mac's catalog. pocket-shell's
-`bun run tab5` and `bun run offer` compile them against this program's
-`home.runtime-config.ts` (`POCKET_M5_ROOT` names this checkout); the profile
-hash depends on the profile's content, so a package built against an
-identical `tab5-home` profile in another checkout installs here. A UI realm
+The applets install from a paired Mac's catalog. An applet compiled with
+`--host-config programs/m5stack-tab5/pocket.host.config.ts` by a pocketjs at
+or after pocket-nexus/pocketjs#631 installs here; pocket-shell's `bun run
+tab5` reads the former `home.runtime-config.ts` and predates #631. A UI realm
 has no network module: an app reaches the network through its worker's
 `io.http`, and one that imports `@pocketjs/framework/net`, removed from
 pocketjs, does not compile.
