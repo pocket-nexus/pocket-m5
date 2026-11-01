@@ -7,12 +7,16 @@
  * engine/host-services; this component keeps the store, the radio, the clock
  * and the QuickJS bindings.
  *
- * The store lives under one mounted directory (`root`):
+ * The store lives under one mounted directory (`root`) and on one data
+ * partition (`packages_partition`):
  *
  *   <root>/link/                        device id, paired companions
- *   <root>/apps/<slot>/package.pocket   the slot's installed package
  *   <root>/apps/<slot>/app.txt          the launcher's cached facts
  *   <root>/apps/<slot>/data/            the guest's data.fs tree
+ *   <root>/apps/<slot>/package.pocket   an installed package, when the
+ *                                       firmware had no partition for it
+ *   the partition                       the installed packages, read in
+ *                                       place through one mapping
  *
  * where <slot> is the first 16 hex digits of SHA-256 of the app id. The
  * launcher and the bundled packages are embedded in the firmware and read
@@ -61,6 +65,9 @@ typedef struct {
   size_t bundled_count;
   /** A mounted directory holding the store. */
   const char *root;
+  /** The data partition installed packages are written to and read from in
+   * place, or NULL to keep them as files under `root`. */
+  const char *packages_partition;
   /** The console's name and model in the link handshake. */
   const char *device_name;
   const char *device_model;

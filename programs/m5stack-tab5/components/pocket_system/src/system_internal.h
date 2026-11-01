@@ -55,6 +55,25 @@ const char *install_poll(void);
 void install_pump(void);
 void install_reset_guest(void);
 
+/* flash_store.c: installed packages on a raw flash partition of 64 KiB
+ * pages, mapped read-only as a whole. Every call runs on the system task.
+ * Bytes a find or an install returns stay valid until the slot's package is
+ * removed or replaced. */
+#define FLASH_STORE_MAX_ENTRIES 32
+esp_err_t flash_store_open(const char *label);
+bool flash_store_ready(void);
+const uint8_t *flash_store_find(const char *slot, size_t *size, uint64_t *hash);
+size_t flash_store_count(void);
+const uint8_t *flash_store_at(size_t index, char slot[17], size_t *size,
+                              uint64_t *hash);
+/* Program `bytes`, whose footer is `hash`, as `slot`'s package and replace
+ * the one it had. ESP_ERR_NO_MEM when no run of pages is free. */
+esp_err_t flash_store_install(const char *slot, const uint8_t *bytes,
+                              size_t size, uint64_t hash,
+                              const uint8_t **stored);
+bool flash_store_remove(const char *slot);
+size_t flash_store_free_bytes(void);
+
 /* qjs.c: install the system namespaces into the guest's realm; the
  * launcher also gets `installer`. */
 esp_err_t system_qjs_install(JSContext *ctx, bool launcher);

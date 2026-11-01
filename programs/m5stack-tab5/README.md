@@ -23,10 +23,12 @@ and a worker table of one `http`, two `i2c` and one `uart` node, the nodes
 `main.c` gives every app's worker domain.
 
 The firmware is a launcher console: `components/pocket_system`
-keeps a store of installed apps on the microSD card (SDSPI; the `storage`
-flash partition without a card), the Pocket Link to a paired companion,
-each app's `data.fs` tree, the Wi-Fi radio on the ESP32-C6 (esp_hosted) and
-the wall clock from SNTP. The build compiles Pocket Shell
+keeps the installed packages on the 4 MiB `apps` flash partition, read in
+place through one mapping, and the launcher's cached facts, each app's
+`data.fs` tree and uploads in progress on the microSD card (SDSPI; the
+`storage` flash partition without a card); it also keeps the Pocket Link to
+a paired companion, the Wi-Fi radio on the ESP32-C6 (esp_hosted) and the
+wall clock from SNTP. The build compiles Pocket Shell
 (`apps/pocket-shell`) with `pocket.host.config.ts`, embeds it as the
 launcher and boots one runtime per app; SELECT from the home control returns
 to the launcher. The build also compiles the apps that
@@ -145,7 +147,14 @@ Builds run the Pocket CLI through `tools/pocket` (`POCKETJS_CLI`) and, with
 the `riscv32imafc-unknown-none-elf` target. The image with Pocket Shell and
 the three bundled apps is 7.3 MiB of the 8 MiB `factory` partition (with
 Pocket Shell alone 4.1 MiB). `-DPOCKETJS_TAB5_BUNDLED_APPS=` builds without
-them. The log reports the frame rate every five seconds.
+them. `partitions.csv` lays the 16 MiB flash out as `nvs`, `phy_init`, the
+8 MiB `factory` app, the 4 MiB `apps` data partition at 0x810000 (installed
+packages, 64 KiB pages) and the 3.9 MiB `storage` FAT at 0xC10000. Firmware
+before the `apps` partition kept `storage` at 0x810000: the first boot of
+this layout formats the moved partition, which only a cardless device used,
+and moves `package.pocket` files from the card into `apps`. An install
+programs flash for a few seconds, during which the launcher does not
+draw. The log reports the frame rate every five seconds.
 
 The applets install from a paired Mac's catalog, and an app installs from an
 install QR code that Pocket Shell scans (`components/pocket_system`,

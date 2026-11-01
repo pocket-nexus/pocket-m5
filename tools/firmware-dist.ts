@@ -81,7 +81,8 @@ writeFileSync(join(out, "RELEASE.md"), `PocketJS firmware for the M5Stack Tab5 (
 
 \`${merged}\` holds the bootloader, partition table and app from offset 0x0.
 Writing it erases the \`nvs\` partition (saved Wi-Fi networks); the
-\`storage\` partition and the microSD card keep their apps and data.
+\`apps\` and \`storage\` partitions and the microSD card keep their apps
+and data.
 
 \`\`\`sh
 python -m esptool --chip ${chip} -p <port> -b 460800 write-flash 0x0 ${merged}

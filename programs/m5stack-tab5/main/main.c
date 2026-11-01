@@ -1038,6 +1038,7 @@ static const char *start_system(void) {
       .bundled = bundled,
       .bundled_count = bundled_count,
       .root = root,
+      .packages_partition = "apps",
       .device_name = "M5Stack Tab5",
       .device_model = "M5Stack Tab5",
       .wifi = true,
