@@ -13,7 +13,9 @@ the first handle opens and reset when the last one closes. Board-native code
 that configures a device the worker also talks to must coordinate with the
 application; the bus lock serializes transfers, not device state.
 
-Opcode 1 is a script; opcode 2 (`I2CDevice.probe()`) is an address-only
+Opcode 1 is a script of register reads (step op 1), register writes (op 2)
+and receives (op 3, `receive(layout)`: START, the address with the read bit
+and the bytes, with no register byte). Opcode 2 (`I2CDevice.probe()`) is an address-only
 transaction, START, the address byte and STOP, that completes ok when the
 device acknowledges and failed when it does not. On a hardware bus it runs
 through `i2c_master_execute_defined_operations` like a script:

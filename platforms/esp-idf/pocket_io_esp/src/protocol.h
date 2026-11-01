@@ -2,7 +2,9 @@
 #include <stddef.h>
 #include <stdint.h>
 #define POCKET_I2C_ESP_STEPS 8
-/* Internal checked view. Script bytes stay owned by the request until done. */
+/* Internal checked view. Script bytes stay owned by the request until done.
+ * op 1 is a register read, op 2 a register write, op 3 a read with no
+ * register phase. */
 typedef struct {
   uint8_t op, reg;
   uint16_t length;

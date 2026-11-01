@@ -22,17 +22,27 @@ int pocket_i2c_esp_decode(const uint8_t *data, size_t size,
     step->length =
         (uint16_t)(data[offset + 2] | ((uint16_t)data[offset + 3] << 8));
     offset += 4;
-    if ((step->op == 1 && !step->length) || (step->op != 1 && step->op != 2))
+    /* op 1 reads after the register byte, op 2 writes it and the data, op 3
+     * reads with no register phase and carries register 0. */
+    if (step->op < 1 || step->op > 3 || (step->op != 2 && !step->length) ||
+        (step->op == 3 && step->reg))
       return 0;
-    /* Include register and address bytes in the controller occupancy limit. */
-    transfer += step->length + (step->op == 1 ? 3u : 2u);
-    commands += step->op == 2 ? 2 : step->length > 1 ? 6 : 5;
+    /* Include register and address bytes in the controller occupancy limit:
+     * a register read sends the address twice and the register once. */
+    static const uint8_t overhead[] = {0, 3, 2, 1};
+    transfer += step->length + overhead[step->op];
+    /* START and the address write, then for a read a READ with ACK for all
+     * bytes but the last and a READ with NACK; a register read adds the
+     * repeated START and the read address. */
+    commands += step->op == 2   ? 2
+                : step->op == 3 ? (step->length > 1 ? 4 : 3)
+                                : (step->length > 1 ? 6 : 5);
     /* Supported IDF controllers have eight hardware command slots. */
     if (commands > 8)
       return 0;
     if (transfer > max_bytes)
       return 0;
-    if (step->op == 1) {
+    if (step->op != 2) {
       out->read_length += step->length;
       if (out->read_length > result_capacity)
         return 0;

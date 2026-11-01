@@ -174,13 +174,16 @@ static esp_err_t soft_execute(pocket_i2c_esp *driver, const device_slot *device,
   for (size_t i = 0; i < script->count && acked && !bus.failed; ++i) {
     const pocket_i2c_esp_step *step = &script->steps[i];
     soft_start(&bus);
-    acked = soft_write(&bus, (uint8_t)(device->address << 1)) &&
-            soft_write(&bus, step->reg);
+    if (step->op != 3)
+      acked = soft_write(&bus, (uint8_t)(device->address << 1)) &&
+              soft_write(&bus, step->reg);
     if (step->op == 2) {
       for (size_t j = 0; j < step->length && acked; ++j)
         acked = soft_write(&bus, step->data[j]);
     } else if (acked) {
-      soft_start(&bus);
+      /* A register read repeats START; a receive starts here. */
+      if (step->op == 1)
+        soft_start(&bus);
       acked = soft_write(&bus, (uint8_t)(device->address << 1) | 1);
       for (size_t j = 0; j < step->length && acked && !bus.failed; ++j)
         result[read_offset + j] = soft_read(&bus, j + 1 < step->length);
@@ -220,20 +223,24 @@ static esp_err_t hard_execute(pocket_i2c_esp *driver, const device_slot *device,
   size_t count = 0, read_offset = 0, tx_offset = 0;
   for (size_t i = 0; i < script->count; ++i) {
     const pocket_i2c_esp_step *step = &script->steps[i];
-    const size_t tx_start = tx_offset;
-    transmit[tx_offset++] = device->address << 1;
-    transmit[tx_offset++] = step->reg;
-    if (step->op == 2) {
-      memcpy(transmit + tx_offset, step->data, step->length);
-      tx_offset += step->length;
+    if (step->op != 3) {
+      const size_t tx_start = tx_offset;
+      transmit[tx_offset++] = device->address << 1;
+      transmit[tx_offset++] = step->reg;
+      if (step->op == 2) {
+        memcpy(transmit + tx_offset, step->data, step->length);
+        tx_offset += step->length;
+      }
+      ops[count++] = (i2c_operation_job_t){.command = I2C_MASTER_CMD_START};
+      ops[count++] =
+          (i2c_operation_job_t){.command = I2C_MASTER_CMD_WRITE,
+                                .write = {.ack_check = true,
+                                          .data = transmit + tx_start,
+                                          .total_bytes = tx_offset - tx_start}};
     }
-    ops[count++] = (i2c_operation_job_t){.command = I2C_MASTER_CMD_START};
-    ops[count++] =
-        (i2c_operation_job_t){.command = I2C_MASTER_CMD_WRITE,
-                              .write = {.ack_check = true,
-                                        .data = transmit + tx_start,
-                                        .total_bytes = tx_offset - tx_start}};
-    if (step->op == 1) {
+    if (step->op != 2) {
+      /* A register read repeats START after the register byte; a receive
+       * has only this START. */
       address_read[i] = (device->address << 1) | 1;
       ops[count++] = (i2c_operation_job_t){.command = I2C_MASTER_CMD_START};
       ops[count++] = (i2c_operation_job_t){.command = I2C_MASTER_CMD_WRITE,
