@@ -173,6 +173,10 @@ a package built for this contract has no source to fall back to, so a
 bytecode that fails to load fails the app, and removing `bytecode` from the
 contract builds source-only packages again.
 
+The baked font atlases of a package stay in the package as well: the
+runtime reads their coverage cells from flash where the package is, so the
+100 KiB to 900 KiB of glyphs an app carries no longer occupy PSRAM.
+
 The applets install from a paired Mac's catalog, and an app installs from an
 install QR code that Pocket Shell scans (`components/pocket_system`,
 "Installs from a code"). An applet compiled with
