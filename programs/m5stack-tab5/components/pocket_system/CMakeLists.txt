@@ -7,6 +7,7 @@ set(shared "${CMAKE_CURRENT_LIST_DIR}/../../../../third_party/pocketjs/engine/ho
 idf_component_register(
     SRCS
         "src/services_host.c"
+        "src/flash_store.c"
         "src/wifi.c"
         "src/clock.c"
         "src/fetch.c"
@@ -22,7 +23,7 @@ idf_component_register(
     INCLUDE_DIRS "include"
     PRIV_INCLUDE_DIRS "src" "${shared}"
     REQUIRES pocket_runtime pocket_guest_quickjs
-    PRIV_REQUIRES esp-tls esp_event esp_http_client esp_http_server esp_netif esp_timer esp_wifi fatfs log lwip mbedtls nvs_flash vfs wear_levelling
+    PRIV_REQUIRES esp-tls esp_event esp_http_client esp_http_server esp_netif esp_partition esp_timer esp_wifi fatfs log lwip mbedtls nvs_flash spi_flash vfs wear_levelling
     REQUIRED_IDF_TARGETS esp32p4
 )
 

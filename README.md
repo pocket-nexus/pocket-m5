@@ -87,8 +87,8 @@ A release holds:
 
 The release notes (`RELEASE.md` from `tools/firmware-dist.ts`) give the
 pocketjs and ESP-IDF versions and the `esptool` commands. Neither image
-writes the `storage` partition or the microSD card, so installed apps and
-their data stay. `bun tools/firmware-dist.ts` packages a local build the same
+writes the `apps` and `storage` partitions or the microSD card, so installed
+apps and their data stay. `bun tools/firmware-dist.ts` packages a local build the same
 way (into `.pocket-build/dist/`) with the ESP-IDF environment exported.
 
 ## Documentation

@@ -63,16 +63,19 @@ struct pocketjs_system_app {
   bool launcher;
 };
 
-/* A package the firmware embeds: the launcher or a bundled app. Its bytes
- * are read in place and its facts once, at start, so booting it costs no
- * hash pass. */
+/* A package read from flash in place: the launcher, a bundled app or an app
+ * installed on the apps partition. Its facts are read once, when it is
+ * admitted, so booting it costs no hash pass. */
 typedef struct {
   const uint8_t *bytes;
   size_t size;
   pocket_idf_package_facts facts;
   uint64_t hash;
   char slot[17];
-} EmbeddedPackage;
+  /* Part of the firmware image: the companion can neither replace nor
+   * remove it. */
+  bool bundled;
+} ResidentPackage;
 
 static bool started;
 static pocketjs_system_config_t config;
@@ -80,21 +83,44 @@ static char root_dir[64];
 static char apps_dir[80];
 static char link_dir[80];
 static char launcher_slot[17];
-static EmbeddedPackage launcher_package;
-static EmbeddedPackage *embedded_apps;
-static size_t embedded_app_count;
+static ResidentPackage launcher_package;
+/* The bundled apps, then the installed ones; changed on the system task. */
+static ResidentPackage *residents;
+static size_t resident_count;
+static size_t resident_capacity;
 
-/* The embedded package kept in `slot`, or NULL. */
-static const EmbeddedPackage *embedded_in_slot(const char *slot) {
+/* The resident package kept in `slot`, or NULL. */
+static ResidentPackage *resident_in_slot(const char *slot) {
   if (slot == NULL)
     return NULL;
   if (launcher_package.bytes != NULL &&
       strcmp(slot, launcher_package.slot) == 0)
     return &launcher_package;
-  for (size_t i = 0; i < embedded_app_count; ++i)
-    if (strcmp(slot, embedded_apps[i].slot) == 0)
-      return &embedded_apps[i];
+  for (size_t i = 0; i < resident_count; ++i)
+    if (strcmp(slot, residents[i].slot) == 0)
+      return &residents[i];
   return NULL;
+}
+
+static void resident_drop(ResidentPackage *entry) {
+  const size_t index = (size_t)(entry - residents);
+  memmove(entry, entry + 1, (resident_count - index - 1) * sizeof *entry);
+  resident_count -= 1;
+}
+
+/* Add the resident package of entry->slot, or replace the one it had. */
+static bool resident_put(const ResidentPackage *entry) {
+  ResidentPackage *existing = resident_in_slot(entry->slot);
+  if (existing == &launcher_package)
+    return false;
+  if (existing != NULL) {
+    *existing = *entry;
+    return true;
+  }
+  if (resident_count == resident_capacity)
+    return false;
+  residents[resident_count++] = *entry;
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -251,6 +277,18 @@ static LauncherPackage facts_of(const pocket_idf_package_facts *facts,
   };
 }
 
+/* Admit `bytes`, read in place, as the resident package of its slot. */
+static bool admit_resident(const uint8_t *bytes, size_t size, bool bundled,
+                           ResidentPackage *out, char *error, size_t capacity) {
+  ResidentPackage entry = {.bytes = bytes, .size = size, .bundled = bundled};
+  if (!open_package(bytes, size, &entry.facts, error, capacity))
+    return false;
+  memcpy(entry.slot, entry.facts.slot, sizeof entry.slot);
+  entry.hash = footer_of(bytes, size);
+  *out = entry;
+  return true;
+}
+
 /* The whole file in PSRAM, 16-byte aligned like an embedded package. */
 static uint8_t *read_file(const char *path, size_t *size) {
   FILE *file = fopen(path, "rb");
@@ -354,9 +392,9 @@ bool launcher_host_slot_path(const char *slot, const char *name, char *out,
 }
 
 bool launcher_host_active_hash(const char *slot, uint64_t *hash) {
-  const EmbeddedPackage *embedded = embedded_in_slot(slot);
-  if (embedded != NULL) {
-    *hash = embedded->hash;
+  const ResidentPackage *resident = resident_in_slot(slot);
+  if (resident != NULL) {
+    *hash = resident->hash;
     return true;
   }
   char path[SLOT_PATH_BYTES];
@@ -376,11 +414,11 @@ bool launcher_host_active_hash(const char *slot, uint64_t *hash) {
 
 bool launcher_host_load(const char *slot, uint64_t hash, LauncherPackage *out,
                         void **held) {
-  const EmbeddedPackage *embedded = embedded_in_slot(slot);
-  if (embedded != NULL) {
-    if (hash != 0 && hash != embedded->hash)
+  const ResidentPackage *resident = resident_in_slot(slot);
+  if (resident != NULL) {
+    if (hash != 0 && hash != resident->hash)
       return false;
-    *out = facts_of(&embedded->facts, embedded->bytes, embedded->size);
+    *out = facts_of(&resident->facts, resident->bytes, resident->size);
     *held = NULL;
     return true;
   }
@@ -436,14 +474,52 @@ bool link_host_staging_path(const char *slot, char *out, size_t capacity) {
 bool link_host_install(const char *slot, const char *path, uint64_t hash,
                        LauncherPackage *out, void **held, char *error,
                        size_t error_capacity) {
-  if (embedded_in_slot(slot) != NULL) {
+  const ResidentPackage *resident = resident_in_slot(slot);
+  if (resident != NULL && resident->bundled) {
     remove(path);
     snprintf(error, error_capacity,
              "install: the slot holds a package bundled into the firmware");
     return false;
   }
+  /* The running app reads its package from the pages an install erases. */
+  if (flash_store_ready() && strcmp(slot, launcher_current_slot()) == 0) {
+    remove(path);
+    snprintf(error, error_capacity,
+             "install: the app is running; return to the launcher first");
+    return false;
+  }
   if (!load_path(path, slot, hash, out, held, error, error_capacity)) {
     remove(path);
+    return false;
+  }
+  if (flash_store_ready()) {
+    const HeldPackage *keep = *held;
+    const size_t size = (size_t)out->bytes;
+    const uint8_t *stored = NULL;
+    const esp_err_t result =
+        flash_store_install(slot, keep->bytes, size, out->hash, &stored);
+    remove(path);
+    ResidentPackage entry;
+    if (result == ESP_OK &&
+        admit_resident(stored, size, false, &entry, error, error_capacity) &&
+        resident_put(&entry)) {
+      char stale[SLOT_PATH_BYTES];
+      if (launcher_host_slot_path(slot, PACKAGE_NAME, stale, sizeof stale))
+        remove(stale);
+      return true;
+    }
+    if (result == ESP_OK)
+      flash_store_remove(slot);
+    services_host_release(*held);
+    *held = NULL;
+    if (result == ESP_ERR_NO_MEM)
+      snprintf(error, error_capacity,
+               "install: no room on the apps partition (%u KiB free)",
+               (unsigned)(flash_store_free_bytes() / 1024));
+    else if (result != ESP_OK)
+      snprintf(error, error_capacity,
+               "install: the apps partition could not be written (%s)",
+               esp_err_to_name(result));
     return false;
   }
   char committed[SLOT_PATH_BYTES];
@@ -466,13 +542,20 @@ bool link_host_install(const char *slot, const char *path, uint64_t hash,
 bool link_host_remove(const char *slot) {
   char directory[SLOT_PATH_BYTES];
   struct stat info;
+  ResidentPackage *resident = resident_in_slot(slot);
   /* A bundled package is part of the firmware. */
-  if (embedded_in_slot(slot) != NULL ||
-      !launcher_host_slot_path(slot, NULL, directory, sizeof directory) ||
-      stat(directory, &info) != 0) {
+  if (resident != NULL && resident->bundled)
     return false;
+  const bool installed = resident != NULL;
+  if (installed) {
+    flash_store_remove(slot);
+    resident_drop(resident);
   }
-  return fs_remove_tree(directory, FS_MAX_DEPTH + 2);
+  if (!launcher_host_slot_path(slot, NULL, directory, sizeof directory) ||
+      stat(directory, &info) != 0) {
+    return installed;
+  }
+  return fs_remove_tree(directory, FS_MAX_DEPTH + 2) || installed;
 }
 
 void link_host_linked(bool up) { (void)up; }
@@ -544,21 +627,22 @@ static bool cached_hash(const char *slot, uint64_t *hash) {
  * launcher's cached facts and the app's data tree, never the package: one an
  * earlier firmware wrote there is removed. */
 static void admit_bundled(const pocketjs_system_bundled_t *bundled) {
-  EmbeddedPackage entry = {.bytes = bundled->bytes, .size = bundled->size};
+  ResidentPackage entry;
   char error[160];
-  if (!open_package(entry.bytes, entry.size, &entry.facts, error,
-                    sizeof error)) {
+  if (!admit_resident(bundled->bytes, bundled->size, true, &entry, error,
+                      sizeof error)) {
     ESP_LOGE(TAG, "bundled package: %s", error);
     return;
   }
-  memcpy(entry.slot, entry.facts.slot, sizeof entry.slot);
-  entry.hash = footer_of(entry.bytes, entry.size);
-  if (embedded_in_slot(entry.slot) != NULL) {
+  if (resident_in_slot(entry.slot) != NULL) {
     ESP_LOGW(TAG, "slot %s: a bundled package repeats an embedded one",
              entry.slot);
     return;
   }
-  embedded_apps[embedded_app_count++] = entry;
+  if (!resident_put(&entry)) {
+    ESP_LOGE(TAG, "slot %s: no room in the package table", entry.slot);
+    return;
+  }
   char path[SLOT_PATH_BYTES];
   if (launcher_host_slot_path(entry.slot, NULL, path, sizeof path))
     mkdir(path, 0777);
@@ -578,8 +662,101 @@ static void admit_bundled(const pocketjs_system_bundled_t *bundled) {
            entry.slot, (unsigned)entry.size);
 }
 
-/* The store's directories, the launcher's slot, the bundled packages and
- * the link's identity. */
+/* The packages on the apps partition become resident apps. One whose slot
+ * the firmware bundles is removed; one the host facts no longer admit stays
+ * on the partition, unlisted, until an install replaces it. */
+static void admit_flash_store(void) {
+  if (config.packages_partition == NULL)
+    return;
+  const esp_err_t opened = flash_store_open(config.packages_partition);
+  if (opened != ESP_OK) {
+    ESP_LOGW(TAG, "apps partition %s: %s; packages stay files",
+             config.packages_partition, esp_err_to_name(opened));
+    return;
+  }
+  char error[160];
+  for (size_t i = 0; i < flash_store_count();) {
+    char slot[17];
+    size_t size = 0;
+    uint64_t hash = 0;
+    const uint8_t *bytes = flash_store_at(i, slot, &size, &hash);
+    if (resident_in_slot(slot) != NULL) {
+      ESP_LOGI(TAG,
+               "slot %s: the firmware bundles this app; its installed "
+               "copy is removed",
+               slot);
+      flash_store_remove(slot);
+      continue;
+    }
+    ResidentPackage entry;
+    if (!admit_resident(bytes, size, false, &entry, error, sizeof error)) {
+      ESP_LOGW(TAG, "slot %s: %s", slot, error);
+      i += 1;
+      continue;
+    }
+    if (entry.hash != hash || strcmp(entry.slot, slot) != 0) {
+      ESP_LOGW(TAG, "slot %s: the stored header names another package", slot);
+      flash_store_remove(slot);
+      continue;
+    }
+    if (!resident_put(&entry))
+      ESP_LOGE(TAG, "slot %s: no room in the package table", slot);
+    i += 1;
+  }
+}
+
+/* A package.pocket an earlier firmware kept under the store moves to the
+ * apps partition; it stays a file when no run of pages is free. */
+static void migrate_slot(const char *slot) {
+  char path[SLOT_PATH_BYTES];
+  struct stat info;
+  if (!launcher_host_slot_path(slot, PACKAGE_NAME, path, sizeof path) ||
+      stat(path, &info) != 0)
+    return;
+  LauncherPackage package;
+  void *held = NULL;
+  char error[160];
+  if (!load_path(path, slot, 0, &package, &held, error, sizeof error)) {
+    ESP_LOGW(TAG, "slot %s: %s", slot, error);
+    return;
+  }
+  const HeldPackage *keep = held;
+  const size_t size = (size_t)package.bytes;
+  const uint8_t *stored = NULL;
+  const esp_err_t result =
+      flash_store_install(slot, keep->bytes, size, package.hash, &stored);
+  services_host_release(held);
+  if (result != ESP_OK) {
+    ESP_LOGW(TAG, "slot %s: the package stays a file (%s)", slot,
+             esp_err_to_name(result));
+    return;
+  }
+  ResidentPackage entry;
+  if (admit_resident(stored, size, false, &entry, error, sizeof error) &&
+      resident_put(&entry)) {
+    remove(path);
+    ESP_LOGI(TAG, "slot %s: moved the package to the apps partition (%u bytes)",
+             slot, (unsigned)size);
+    return;
+  }
+  flash_store_remove(slot);
+  ESP_LOGW(TAG, "slot %s: %s", slot, error);
+}
+
+static void migrate_files(void) {
+  DIR *directory = opendir(apps_dir);
+  if (directory == NULL)
+    return;
+  struct dirent *entry;
+  while ((entry = readdir(directory)) != NULL) {
+    if (strlen(entry->d_name) == 16 && resident_in_slot(entry->d_name) == NULL)
+      migrate_slot(entry->d_name);
+  }
+  closedir(directory);
+}
+
+/* The store's directories, the launcher's slot, the bundled and installed
+ * packages and the link's identity. */
 static void start_store(void *argument) {
   esp_err_t *result = argument;
   mkdir(apps_dir, 0777);
@@ -595,19 +772,24 @@ static void start_store(void *argument) {
   }
   launcher_package.hash =
       footer_of(launcher_package.bytes, launcher_package.size);
+  launcher_package.bundled = true;
   memcpy(launcher_package.slot, launcher_package.facts.slot,
          sizeof launcher_package.slot);
   memcpy(launcher_slot, launcher_package.facts.slot, sizeof launcher_slot);
   const LauncherPackage package = facts_of(
       &launcher_package.facts, launcher_package.bytes, launcher_package.size);
   launcher_init(launcher_slot, &package);
-  if (config.bundled_count != 0) {
-    embedded_apps = calloc(config.bundled_count, sizeof *embedded_apps);
-    if (embedded_apps == NULL)
-      ESP_LOGE(TAG, "bundled packages: out of memory");
-    else
-      for (size_t i = 0; i < config.bundled_count; ++i)
-        admit_bundled(&config.bundled[i]);
+  resident_capacity = config.bundled_count + FLASH_STORE_MAX_ENTRIES;
+  residents = calloc(resident_capacity, sizeof *residents);
+  if (residents == NULL) {
+    ESP_LOGE(TAG, "packages: out of memory");
+    resident_capacity = 0;
+  } else {
+    for (size_t i = 0; i < config.bundled_count; ++i)
+      admit_bundled(&config.bundled[i]);
+    admit_flash_store();
+    if (flash_store_ready())
+      migrate_files();
   }
   link_init();
 }
@@ -651,16 +833,17 @@ static esp_err_t finish_app(pocketjs_system_app_t *app, const uint8_t *bytes,
   return ESP_OK;
 }
 
-/* An app read from flash in place, whose facts were read at start. */
-static esp_err_t embedded_app(const EmbeddedPackage *embedded, bool launcher,
+/* An app read from flash in place, whose facts were read when it was
+ * admitted. */
+static esp_err_t resident_app(const ResidentPackage *resident, bool launcher,
                               pocketjs_system_app_t **out) {
   pocketjs_system_app_t *app = calloc(1, sizeof *app);
   if (app == NULL)
     return ESP_ERR_NO_MEM;
-  app->bytes = embedded->bytes;
-  app->size = embedded->size;
-  app->facts = embedded->facts;
-  memcpy(app->slot, embedded->slot, sizeof app->slot);
+  app->bytes = resident->bytes;
+  app->size = resident->size;
+  app->facts = resident->facts;
+  memcpy(app->slot, resident->slot, sizeof app->slot);
   app->launcher = launcher;
   *out = app;
   return ESP_OK;
@@ -669,7 +852,22 @@ static esp_err_t embedded_app(const EmbeddedPackage *embedded, bool launcher,
 esp_err_t pocketjs_system_load_launcher(pocketjs_system_app_t **out_app) {
   if (!started || out_app == NULL)
     return ESP_ERR_INVALID_STATE;
-  return embedded_app(&launcher_package, true, out_app);
+  return resident_app(&launcher_package, true, out_app);
+}
+
+typedef struct {
+  const char *slot;
+  bool found;
+  ResidentPackage package;
+} ResidentLookup;
+
+/* On the system task: the table changes there. */
+static void lookup_resident(void *argument) {
+  ResidentLookup *lookup = argument;
+  const ResidentPackage *resident = resident_in_slot(lookup->slot);
+  lookup->found = resident != NULL;
+  if (resident != NULL)
+    lookup->package = *resident;
 }
 
 typedef struct {
@@ -691,9 +889,10 @@ esp_err_t pocketjs_system_load_slot(const char *slot,
     return ESP_ERR_INVALID_ARG;
   if (strcmp(slot, launcher_slot) == 0)
     return pocketjs_system_load_launcher(out_app);
-  const EmbeddedPackage *embedded = embedded_in_slot(slot);
-  if (embedded != NULL)
-    return embedded_app(embedded, false, out_app);
+  ResidentLookup lookup = {.slot = slot};
+  system_run(lookup_resident, &lookup);
+  if (lookup.found)
+    return resident_app(&lookup.package, false, out_app);
   SlotRead read = {.slot = slot};
   system_run(read_slot, &read);
   uint8_t *bytes = read.bytes;

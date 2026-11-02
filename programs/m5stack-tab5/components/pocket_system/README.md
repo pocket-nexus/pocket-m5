@@ -13,28 +13,44 @@ QR code.
 
 ## Store
 
-`pocketjs_system_start` takes one mounted directory:
+`pocketjs_system_start` takes one mounted directory and the name of a data
+partition:
 
-| Path | Contents |
+| Place | Contents |
 | --- | --- |
 | `link/` | the device id and one file per paired companion |
-| `apps/<slot>/package.pocket` | the package the companion installed into the slot; its hash is the file's footer |
 | `apps/<slot>/app.txt` | the launcher's cached facts (output, id, title, version) |
 | `apps/<slot>/data/` | the guest's `data.fs` tree, quota from `applet.store` |
+| `apps/<slot>/link-upload.pocket`, `url-upload.pocket` | an install in progress, from the companion or from a code |
+| the `packages_partition` (`apps`) | the installed packages, one extent of 64 KiB pages each |
+| `apps/<slot>/package.pocket` | a package installed when the firmware had no `apps` partition |
 
 `<slot>` is the first 16 hex digits of SHA-256 of the app id. An install
 streams into `apps/<slot>/link-upload.pocket`, is admitted
 (`pocket_idf_package_open`: footer, FNV-1a64, then the first variant the
 firmware's host facts satisfy: binding generation, raster density, animation
 class, tick rate, viewport, presentation, capabilities and auxiliary surface)
-and replaces `package.pocket`. The `bundled` packages of
-`pocketjs_system_config_t` stay in the firmware image: start admits each
-once and keeps its facts, removes a `package.pocket` an earlier firmware
-wrote into its slot, and rewrites the slot's `app.txt` when the cached hash
-differs. They are installed apps the companion can neither replace nor
-remove. Booting an embedded package reads the flash bytes in place; a
-package from the card is read into PSRAM once. The runtime reads every
-package where it is, without a copy or a second hash pass
+and is programmed into the first free run of pages of the `apps`
+partition (`flash_store.c`): a 64-byte header, the package from offset 64,
+padding to the page. The bytes go first and the header last, so an
+interrupted install leaves free pages, never a package the firmware would
+refuse; a replaced or removed package has the state word of its header
+cleared in place. The whole partition is mapped read-only once, so an
+installed package is read from flash where it is, like an embedded one. The
+flash writes take a few seconds for a 1.6 MiB package and stall the other
+tasks for each chunk, and the running app cannot be replaced: an install
+into its slot is refused until the launcher runs. Without the partition, or
+when no run of pages is free, an install fails with that reason; a
+`package.pocket` an earlier firmware kept under the store is moved to the
+partition at start when it fits and is read into PSRAM at each launch
+otherwise.
+
+The `bundled` packages of `pocketjs_system_config_t` stay in the firmware
+image: start admits each once and keeps its facts, removes a
+`package.pocket` or installed copy an earlier firmware kept for its slot,
+and rewrites the slot's `app.txt` when the cached hash differs. They are
+installed apps the companion can neither replace nor remove. The runtime
+reads every package where it is, without a copy or a second hash pass
 (`POCKET_MEMORY_PACKAGE_VERIFIED`): the admission here is the hash pass.
 `pocketjs_system_mount_flash` mounts a wear-levelled FAT partition when no
 card is available.
