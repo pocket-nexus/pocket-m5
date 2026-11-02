@@ -18,7 +18,7 @@ QR code.
 | Path | Contents |
 | --- | --- |
 | `link/` | the device id and one file per paired companion |
-| `apps/<slot>/package.pocket` | the slot's installed package; its hash is the file's footer |
+| `apps/<slot>/package.pocket` | the package the companion installed into the slot; its hash is the file's footer |
 | `apps/<slot>/app.txt` | the launcher's cached facts (output, id, title, version) |
 | `apps/<slot>/data/` | the guest's `data.fs` tree, quota from `applet.store` |
 
@@ -27,13 +27,15 @@ streams into `apps/<slot>/link-upload.pocket`, is admitted
 (`pocket_idf_package_open`: footer, FNV-1a64, then the first variant the
 firmware's host facts satisfy: binding generation, raster density, animation
 class, tick rate, viewport, presentation, capabilities and auxiliary surface)
-and replaces `package.pocket`. The
-`bundled` packages of `pocketjs_system_config_t`, embedded in the firmware,
-take the same path at start: each is admitted, written to
-`link-upload.pocket` and renamed onto `package.pocket`, and the launcher's
-cached facts are refreshed. A slot whose package has the bundled package's
-footer is left as it is, so an unchanged bundle costs one 8-byte read per
-package; an app removed from the store returns at the next boot.
+and replaces `package.pocket`. The `bundled` packages of
+`pocketjs_system_config_t` stay in the firmware image: start admits each
+once and keeps its facts, removes a `package.pocket` an earlier firmware
+wrote into its slot, and rewrites the slot's `app.txt` when the cached hash
+differs. They are installed apps the companion can neither replace nor
+remove. Booting an embedded package reads the flash bytes in place; a
+package from the card is read into PSRAM once. The runtime reads every
+package where it is, without a copy or a second hash pass
+(`POCKET_MEMORY_PACKAGE_VERIFIED`): the admission here is the hash pass.
 `pocketjs_system_mount_flash` mounts a wear-levelled FAT partition when no
 card is available.
 
