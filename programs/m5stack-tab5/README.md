@@ -33,7 +33,7 @@ wall clock from SNTP. The build compiles Pocket Shell
 launcher and boots one runtime per app; SELECT from the home control returns
 to the launcher. The build also compiles the apps that
 `POCKETJS_TAB5_BUNDLED_APPS` lists (default
-`apps/tab5-demo;apps/worker-http;apps/unit-swap`)
+`apps/tab5-demo;apps/worker-http;apps/unit-swap;apps/worker-mqtt`)
 and embeds them; `pocketjs_system_start` admits each once and serves it from
 flash as an installed app, so a bundled app is never copied to the card or
 into PSRAM. `-DPOCKETJS_TAB5_SHELL_PACKAGE=<package.pocket>` embeds a package
@@ -92,7 +92,9 @@ host contract lists `runtime.worker`, `net.http`, `net.mqtt`, `io.i2c`, `io.uart
 `audio.pcm`, `audio.capture` and `system.device`.
 `pocket_worker_esp` requires ESP-IDF 6.2.x. `apps/worker-http` is the HTTP
 device check: it joins a Wi-Fi network and fetches a URL once connected and
-on each tap. `apps/unit-swap` drives one Port A unit at a time (ENV III,
+on each tap. `apps/worker-mqtt` is the MQTT device check: it opens a broker
+session and runs publish, subscribe, retained, staged-payload and MQTT 5
+property checks. `apps/unit-swap` drives one Port A unit at a time (ENV III,
 RFID 2, Ultrasonic I2C) and switches drivers when the unit changes.
 `apps/tab5-demo` exercises the other nodes and services.
 
