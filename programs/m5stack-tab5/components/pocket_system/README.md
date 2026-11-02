@@ -2,7 +2,8 @@
 
 The system services of the Tab5 as a launcher console: installed apps and
 switching between them, the Pocket Link to a paired companion, a guest's
-`data.fs` tree, the Wi-Fi radio and the SNTP clock.
+`data.fs` tree, the Wi-Fi radio, the SNTP clock and installs from an install
+QR code.
 
 - Public header: `pocket/system.h`
 - Shared state machines: `engine/host-services` (`link.c`, `launcher.c`,
@@ -55,6 +56,7 @@ and boots it.
 | `link` | `contracts/spec/link.ts` |
 | `wifi` | `contracts/spec/wifi.ts`, with `scan`, `join` and `forget` |
 | `fs` | `contracts/spec/fs.ts`, when the plan's features hold `data.fs` |
+| `installer` | the launcher only: installs from an install QR code (below) |
 
 The radio keeps three saved networks in NVS (namespace `pocketwifi`), joins
 the most recently used at start, and saves a joined network once it has an
@@ -65,6 +67,53 @@ the `pocketjs_radio` task (8 KB, internal RAM) makes those calls, a scan when
 the guest asked for one (`scan_requested`, `scan_done`) and the RSSI read on
 an interval while connected; `status` answers from the cached state without
 touching the link.
+
+## Installs from a code
+
+Pocket Shell installs an app from a QR code that holds an install URI:
+
+```
+pocketlink://install?v=1&a=<app id>&s=<sha256>[&n=<title>]&u=<url>
+```
+
+`a` is the manifest id the package carries, `s` the SHA-256 of the whole
+`.pocket` file in 64 lowercase hex digits, `n` an optional percent-encoded
+title, and `u` the package's `http://` or `https://` address. `u` comes
+last and runs to the end of the URI, taken as written, so an address keeps
+its own `&` and `%`; it holds no `#` or whitespace and is at most 200
+bytes. A URI is at most 400 bytes. `install_uri.c` reads it;
+`tests/install-uri.c` runs it under ASan and UBSan.
+
+Only the launcher gets the namespace (`install.c`):
+
+| Function | Result |
+| --- | --- |
+| `installer.installUri(uri)` | a request id, or `-1` when the URI does not parse or an install is running |
+| `installer.poll()` | one JSON array of the events since the last call, or `undefined` |
+
+The events have the shapes of the link's install events:
+`{"t":"install.progress","id","app","received","bytes"}` (`bytes` is 0 while
+the server has not said the length), then `{"t":"install.done","id","app","output"}`
+or `{"t":"error","id","message"}`.
+
+`fetch.c` downloads over `esp_http_client`. One download runs at a time, on
+the `pocket_fetch` task: 12 KB of internal RAM for its stack, because it
+writes the store, held only while the download runs. It waits for an address,
+and for an `https://` address for the SNTP clock (at most 15 s), since
+certificate dates are checked against it; with no SNTP answer by then it sets
+a clock earlier than the firmware's build time to the build time, so a
+certificate issued before the build passes, and SNTP corrects it later.
+HTTPS uses the ESP certificate bundle with mbedTLS buffers in PSRAM. It
+follows at most three redirects, accepts only a `200`, refuses a body over
+24 MiB, writes 16 KB reads to `apps/<slot>/url-upload.pocket` and hashes
+them with SHA-256. A connect or a read waits at most 10 s; a read that times
+out is tried again until no byte has come for 30 s. `install_pump`, on
+the system task once per frame, compares the hash with the URI's and commits
+the package with `link_host_install`, the companion's path: it admits the
+package by the firmware's host facts (`pocket_idf_package_open`) and refuses
+one whose app id does not hash to the slot of `a`, as it does for a package
+read from any slot. A guest switch keeps the download running and drops only
+its events.
 
 ## Clock and worker support
 

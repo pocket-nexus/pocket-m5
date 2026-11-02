@@ -12,4 +12,9 @@ ${CC:-cc} -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
   -I platforms/esp-idf/pocket_http_esp/src tests/http-record.c \
   platforms/esp-idf/pocket_http_esp/src/record.c -o "$validation_dir/http-record"
 "$validation_dir/http-record"
+${CC:-cc} -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
+  -I programs/m5stack-tab5/components/pocket_system/src tests/install-uri.c \
+  programs/m5stack-tab5/components/pocket_system/src/install_uri.c \
+  -o "$validation_dir/install-uri"
+"$validation_dir/install-uri"
 bun test ./tests/sensors.test.ts ./tests/rtc-setting.test.ts ./tests/pocket-shell-clock.test.ts ./tests/unit-swap.test.ts

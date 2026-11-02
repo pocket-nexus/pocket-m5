@@ -146,7 +146,9 @@ Pocket Shell alone 4.1 MiB); on first boot the card takes 2.1 s to store the
 `unit-swap`. `-DPOCKETJS_TAB5_BUNDLED_APPS=`
 builds without them. The log reports the frame rate every five seconds.
 
-The applets install from a paired Mac's catalog. An applet compiled with
+The applets install from a paired Mac's catalog, and an app installs from an
+install QR code that Pocket Shell scans (`components/pocket_system`,
+"Installs from a code"). An applet compiled with
 `--host-config programs/m5stack-tab5/pocket.host.config.ts` by a pocketjs at
 or after pocket-nexus/pocketjs#631 installs here; pocket-shell's `bun run
 tab5` reads the former `home.runtime-config.ts` and predates #631. A UI realm
