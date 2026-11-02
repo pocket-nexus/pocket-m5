@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// apps/pocket-home/springboard.tsx — the Home screen on the touch screen: the
+// apps/pocket-shell/springboard.tsx — the Home screen on the touch screen: the
 // status bar (carrier, Wi-Fi, time), pages of glossy icons over the
 // wallpaper, page dots and the glass dock (Settings, Camera, Photos, Mac).
 //
@@ -8,7 +8,7 @@
 // page, and on release settles on the page the drag or the flick points to.
 // The D-pad pages at the grid's left and right edges.
 //
-// Where each icon sits comes from layout.ts (pages and dock, kept in Home's
+// Where each icon sits comes from layout.ts (pages and dock, kept in Pocket Shell's
 // data). Holding an icon (or Y) starts edit mode: icons wiggle, applets get
 // a delete badge, and an icon held and moved is picked up. While it follows
 // the stylus the others make room for it, sliding to their new places from
@@ -23,7 +23,7 @@
 // Board metrics are read once per boot.
 //
 // Installed applets come from the launcher's app table. Tapping one zooms
-// the screen and asks the host to switch to it; Home boots again after every
+// the screen and asks the host to switch to it; Pocket Shell boots again after every
 // switch, and its board zooms back from where the launch zoom ended. An
 // applet the host interrupted, or one that stopped with an error, is
 // announced by an iOS 6 banner that slides over the status bar.
@@ -172,12 +172,12 @@ function bannerFor(sys: HomeSystem): Banner | null {
   return null;
 }
 
-/** The board's scale at the end of the launch zoom and the start of Home's
+/** The board's scale at the end of the launch zoom and the start of Pocket Shell's
  *  own arrival. */
 const LAUNCH_SCALE = 1.6;
 const LAUNCH_MS = 260;
 const ARRIVE_MS = 300;
-/** The board zooms out behind a launched applet, and back in when Home
+/** The board zooms out behind a launched applet, and back in when Pocket Shell
  *  arrives, on a composited target. A repaint target cuts: a scale tween
  *  over the board repaints the whole surface every frame. */
 const ZOOMS = animationClass === "composited";
@@ -571,7 +571,7 @@ export function createSpringboard(env: SpringboardEnv): Springboard {
   const carried = createMemo(() => carry()?.key ?? "");
   const iconProps = { env, board, focus, editing, wiggle, spots, titleFor, tileFor, appFor, carried };
 
-  /** The board as Home boots: back from the launch zoom, while the host's
+  /** The board as Pocket Shell boots: back from the launch zoom, while the host's
    *  switch transition fades its scrim away. */
   const arrive = (node: NodeMirror) => {
     boardNode = node;

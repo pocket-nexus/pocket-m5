@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// apps/pocket-home/system.ts — Home's view of the console: installed apps (the
+// apps/pocket-shell/system.ts — Pocket Shell's view of the console: installed apps (the
 // launcher's app table), the Pocket Link, the Wi-Fi radio, the linked Mac's
 // catalog and installs in flight, and the clock.
 //
@@ -107,7 +107,7 @@ function readLink(): LinkStatus {
     paired: status.paired.map((entry) => ({ ...entry, name: toAscii(entry.name) })),
     device: { ...status.device, name: toAscii(status.device.name), model: toAscii(status.device.model) },
     error: toAscii(status.error),
-    // The clock moves on every read; Home keeps it apart as a skew (below) so
+    // The clock moves on every read; Pocket Shell keeps it apart as a skew (below) so
     // an unchanged link stays equal and nothing redraws for it.
     clock: null,
   };
@@ -143,8 +143,8 @@ export interface HomeSystem {
   hasLink: boolean;
   wifi: Accessor<WifiStatus | null>;
   hasWifi: boolean;
-  /** The host lets Home scan for, join and forget networks (a console whose
-   *  launcher is its settings); otherwise Home uses the saved slots only. */
+  /** The host lets Pocket Shell scan for, join and forget networks (a console whose
+   *  launcher is its settings); otherwise Pocket Shell uses the saved slots only. */
   canJoin: boolean;
   catalog: Accessor<LinkCatalogApp[]>;
   catalogState: Accessor<CatalogState>;
@@ -202,7 +202,7 @@ export function createHomeSystem(): HomeSystem {
     requestCatalog().then(
       (apps) => {
         if (request !== catalogRequest) return;
-        // Home never offers itself: the launcher is the .3dsx, not a catalog app.
+        // Pocket Shell never offers itself: the launcher is the .3dsx, not a catalog app.
         const launcher = table().launcher;
         setCatalog(apps
           .filter((app) => app.output !== launcher)

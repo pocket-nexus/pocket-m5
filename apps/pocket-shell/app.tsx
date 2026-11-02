@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// apps/pocket-home/app.tsx — Pocket Home, the 3DS system launcher.
+// apps/pocket-shell/app.tsx — Pocket Shell, the 3DS system launcher.
 //
 // The touch screen holds the Home screen; Settings and the Mac store open
 // over it with a zoom, each as a navigation stack. The top screen belongs to
-// the system (capability "system.agent"), so Home draws nothing there.
+// the system (capability "system.agent"), so Pocket Shell draws nothing there.
 //
 // Input: the stylus goes through one router that asks the visible layer for
 // its targets; the buttons go to the alert, then the open stack, then the

@@ -80,14 +80,14 @@ device's addresses, or a bus fault with a button that cuts EXT 5V for
 
 ## Build and validation
 
-The firmware bundles the app (`POCKETJS_TAB5_BUNDLED_APPS`); Pocket Home lists
-it as "Unit Swap". Built on its own and embedded as the home package, it
-runs in place of Pocket Home:
+The firmware bundles the app (`POCKETJS_TAB5_BUNDLED_APPS`); Pocket Shell lists
+it as "Unit Swap". Built on its own and embedded as the launcher package, it
+runs in place of Pocket Shell:
 
 ```sh
 bun run app build apps/unit-swap/pocket.app.json
 idf.py -C programs/m5stack-tab5 \
-  -DPOCKETJS_TAB5_HOME_PACKAGE=$PWD/.pocket-build/apps/unit-swap.pocket build
+  -DPOCKETJS_TAB5_SHELL_PACKAGE=$PWD/.pocket-build/apps/unit-swap.pocket build
 ```
 
 `tests/unit-swap.test.ts` (run by `tools/test-worker-io.sh`) checks the

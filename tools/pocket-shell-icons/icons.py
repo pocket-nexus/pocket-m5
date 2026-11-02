@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Author Pocket Home's icons in Blender and render each one orthographically.
+"""Author Pocket Shell's icons in Blender and render each one orthographically.
 
   /Applications/Blender.app/Contents/MacOS/Blender -b --factory-startup \
-    --python tools/pocket-home-icons/icons.py -- --out .pocket-build/home-icons/render [--only hn,mac]
+    --python tools/pocket-shell-icons/icons.py -- --out .pocket-build/pocket-shell-icons/render [--only hn,mac]
 
-(`bun tools/pocket-home-icons.ts` runs this, nexus.ts for Pocket Nexus's
+(`bun tools/pocket-shell-icons.ts` runs this, nexus.ts for Pocket Nexus's
 letter and the bake.)
 
 Every icon is an iOS 6 tile: a lacquered or metal plate with a raised,

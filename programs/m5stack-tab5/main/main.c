@@ -1,9 +1,9 @@
-/* M5Stack Tab5: Pocket Home and the PocketJS apps it installs on the
+/* M5Stack Tab5: Pocket Shell and the PocketJS apps it installs on the
  * 720x1280 MIPI-DSI panel. The runtime renders the picture in strips with two
  * PPA renderers, one per core; the DPI display copies each strip into the
  * panel's framebuffer, turning a landscape picture onto the portrait panel.
  *
- * The embedded application is Pocket Home: the firmware keeps a store of
+ * The embedded application is Pocket Shell: the firmware keeps a store of
  * installed apps (pocket_system), switches between them, and floats a home
  * ball over the picture: a tap sends SELECT (or summons the launcher from an
  * app), a finger that moves at once drags the ball, a finger that rests on
@@ -75,7 +75,7 @@ static const char *TAG = "pocketjs_tab5";
 #define TAB5_GUEST_HEAP (24U * 1024U * 1024U)
 /* The stack of the task running guest frames, and of the task evaluating
  * the guest: Solid's reactive graph recurses through the stack in a tick
- * (Home's Settings page passes 64 KB). QuickJS stops a script this far
+ * (Pocket Shell's Settings page passes 64 KB). QuickJS stops a script this far
  * below the top with a RangeError, before the task's guard page. */
 #define TAB5_GUEST_STACK (192U * 1024U)
 #define TAB5_GUEST_STACK_LIMIT (144U * 1024U)
@@ -295,7 +295,7 @@ static void show_ball(tab5_host_t *host) {
 
 /* ---- input --------------------------------------------------------------- */
 
-/* The TEXT class holds without a keyboard: the Home profile asks for
+/* The TEXT class holds without a keyboard: the tab5-home contract declares
  * input.text, and the keyboard's presses arrive while one is attached. */
 static uint32_t input_classes(void *context) {
   (void)context;

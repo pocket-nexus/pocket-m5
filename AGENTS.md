@@ -48,7 +48,7 @@ Architecture and implementation notes belong in `docs/`, not here.
 
 - `third_party/pocketjs` is a pinned submodule. Do not edit files in it from
   this repository; land the change upstream, then bump the submodule. A
-  pocketjs bump rebuilds every app, Pocket Home (`apps/pocket-home`)
+  pocketjs bump rebuilds every app, Pocket Shell (`apps/pocket-shell`)
   included, so a breaking change updates the apps in the same pull request.
 - ESP-IDF registry dependencies are declared with exact versions in
   `idf_component.yml`. Each program commits its `dependencies.lock`.

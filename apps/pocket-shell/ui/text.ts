@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// apps/pocket-home/ui/text.ts — text that fits: ASCII folding for runtime strings,
+// apps/pocket-shell/ui/text.ts — text that fits: ASCII folding for runtime strings,
 // measured ellipsis and greedy word wrap.
 //
 // The 3DS bakes its glyph atlases at build time from the characters in the

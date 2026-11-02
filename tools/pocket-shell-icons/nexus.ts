@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// tools/pocket-home-icons/nexus.ts — Pocket Nexus's icon picture: the
+// tools/pocket-shell-icons/nexus.ts — Pocket Nexus's icon picture: the
 // PocketJS mark on a light lavender plate.
 //
-//   bun tools/pocket-home-icons/nexus.ts <render dir>
+//   bun tools/pocket-shell-icons/nexus.ts <render dir>
 //
 // The mark is PocketJS's own drawing (the yellow shell, plum screen, pink
 // dot and cyan and pink keys; third_party/pocketjs/skills/pocketjs-video-outro/
@@ -15,7 +15,7 @@ import { join, resolve } from "node:path";
 import { createCanvas, Image } from "@napi-rs/canvas";
 
 const MARK_SVG = resolve(import.meta.dir, "../../third_party/pocketjs/skills/pocketjs-video-outro/assets/pocketjs-mark.svg");
-const OUT = resolve(process.argv[2] ?? ".pocket-build/home-icons/render");
+const OUT = resolve(process.argv[2] ?? ".pocket-build/pocket-shell-icons/render");
 const RES = 512;
 /** The mark's side as a fraction of the tile. */
 const MARK = 0.8;

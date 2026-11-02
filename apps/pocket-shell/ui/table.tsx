@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// apps/pocket-home/ui/table.tsx — the iOS 6 grouped table: white rounded sections
+// apps/pocket-shell/ui/table.tsx — the iOS 6 grouped table: white rounded sections
 // on pinstripes, embossed section headers, footers, 1 px separators, icons,
 // values, chevrons, checkmarks and switches.
 //

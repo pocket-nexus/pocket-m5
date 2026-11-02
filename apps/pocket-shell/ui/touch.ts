@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// apps/pocket-home/ui/touch.ts — one stylus recognizer per screen, hit-tested
+// apps/pocket-shell/ui/touch.ts — one stylus recognizer per screen, hit-tested
 // against the targets the visible page lays out.
 //
 // Pages place their rows and buttons by arithmetic (a row is an offset, not

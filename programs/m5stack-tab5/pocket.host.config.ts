@@ -1,7 +1,7 @@
 import { defineHostConfig } from "@pocketjs/framework/host-config";
 
 /**
- * Pocket Home and its apps on the Tab5 held in landscape
+ * Pocket Shell and its apps on the Tab5 held in landscape
  * (pocket.host.json, host id tab5-home). The picture is the auxiliary
  * surface, 640x360 at raster density 1, which the program presents at 2x
  * over the whole 1280x720 screen; the primary surface stays off screen. A

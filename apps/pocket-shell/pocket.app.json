@@ -1,7 +1,7 @@
 {
   "$schema": "https://pocketjs.dev/schema/pocket-2.json",
   "pocket": 2,
-  "id": "dev.pocket-nexus.home",
+  "id": "dev.pocket-nexus.shell",
   "title": "Pocket",
   "version": "0.1.0",
   "engine": {
@@ -25,7 +25,7 @@
   },
   "app": {
     "entry": "main.tsx",
-    "output": "home-main",
+    "output": "pocket-shell",
     "framework": "solid",
     "tickHz": 30,
     "surfaces": {

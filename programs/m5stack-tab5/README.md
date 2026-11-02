@@ -14,7 +14,7 @@ pocket-nexus/pocketjs#617.
 
 | Host contract | Launcher | Picture |
 | --- | --- | --- |
-| `tab5-home` (`pocket.host.json`, through `pocket.host.config.ts`) | Pocket Home from `apps/pocket-home` | the auxiliary surface, 640x360 at raster density 1, turned and presented at 2x |
+| `tab5-home` (`pocket.host.json`, through `pocket.host.config.ts`) | Pocket Shell from `apps/pocket-shell` | the auxiliary surface, 640x360 at raster density 1, turned and presented at 2x |
 
 `pocket.host.json` (format `pocket-host/2`) states the facts: one cadence,
 30 Hz; a 400x240 primary viewport and the 640x360 auxiliary surface, both
@@ -26,16 +26,16 @@ The firmware is a launcher console: `components/pocket_system`
 keeps a store of installed apps on the microSD card (SDSPI; the `storage`
 flash partition without a card), the Pocket Link to a paired companion,
 each app's `data.fs` tree, the Wi-Fi radio on the ESP32-C6 (esp_hosted) and
-the wall clock from SNTP. The build compiles Pocket Home
-(`apps/pocket-home`) with `pocket.host.config.ts`, embeds it as the
+the wall clock from SNTP. The build compiles Pocket Shell
+(`apps/pocket-shell`) with `pocket.host.config.ts`, embeds it as the
 launcher and boots one runtime per app; SELECT from the home control returns
 to the launcher. The build also compiles the apps that
 `POCKETJS_TAB5_BUNDLED_APPS` lists (default
 `apps/tab5-demo;apps/worker-http;apps/unit-swap`)
 and embeds them; `pocketjs_system_start` writes each into its store slot when
 the slot holds no package or one with another hash, so they are installed
-apps. `-DPOCKETJS_TAB5_HOME_PACKAGE=<package.pocket>` embeds a package
-the host contract admits in place of Pocket Home. The primary surface is
+apps. `-DPOCKETJS_TAB5_SHELL_PACKAGE=<package.pocket>` embeds a package
+the host contract admits in place of Pocket Shell. The primary surface is
 laid out into a PSRAM buffer that nothing scans out.
 `pocket_idf_package_open` (the IDF archive) admits a stored package by the
 exported host facts (`pocket_profile.facts`) before the runtime boots it, and
@@ -105,7 +105,7 @@ and hands the display the current face as its overlay
 (`pocket_display_esp_dpi_set_overlay`), so the ball stays on the framebuffer
 wherever the picture changes under it. A touch that lands on the ball never
 reaches the guest, however far it travels. A tap (lifted within ten polls,
-under 6 logical px of travel) sends one tick of SELECT to Pocket Home, and
+under 6 logical px of travel) sends one tick of SELECT to Pocket Shell, and
 from an app it summons the launcher instead (`pocketjs_system_summon`); a
 finger that moves at once drags the ball anywhere inside the picture; a
 finger that rests longer and then travels 24 px makes a gesture, logged by
@@ -139,9 +139,9 @@ idf.py -p /dev/cu.usbmodem1201 build flash monitor
 
 Builds run the Pocket CLI through `tools/pocket` (`POCKETJS_CLI`) and, with
 `POCKETJS_RUST_FROM_SOURCE=ON` (the default here), need a Rust toolchain with
-the `riscv32imafc-unknown-none-elf` target. The image with Pocket Home and
+the `riscv32imafc-unknown-none-elf` target. The image with Pocket Shell and
 the three bundled apps is 7.3 MiB of the 8 MiB `factory` partition (with
-Pocket Home alone 4.1 MiB); on first boot the card takes 2.1 s to store the
+Pocket Shell alone 4.1 MiB); on first boot the card takes 2.1 s to store the
 1.6 MiB demo, 0.5 s for `worker-http` and 1.5 s for the 1.2 MiB
 `unit-swap`. `-DPOCKETJS_TAB5_BUNDLED_APPS=`
 builds without them. The log reports the frame rate every five seconds.

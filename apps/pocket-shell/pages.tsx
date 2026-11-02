@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// apps/pocket-home/pages.tsx — the Settings pages: the root list (with the
+// apps/pocket-shell/pages.tsx — the Settings pages: the root list (with the
 // Dual Screen switch), Wi-Fi, Mac, Applets, General, About and Time Zone. Each page is section data over the
 // live system state; the grouped table draws it and the navigation stack
 // scrolls, focuses and pushes it.
@@ -18,7 +18,7 @@ import { SCREEN_H, SCREEN_W } from "./ui/screen.ts";
 import { tableContent, type Cell, type CellIcon, type Section } from "./ui/table.tsx";
 import type { Press } from "./ui/touch.ts";
 
-export const HOME_VERSION = "0.1.0";
+export const SHELL_VERSION = "0.1.0";
 
 export const ICONS = {
   wifi: { art: "wifi" },
@@ -402,7 +402,7 @@ function aboutPage(env: PageEnv, _stack: NavStack, layer: LayerContext): PageSpe
         {
           cells: [
             { id: "about.apps", label: "Applets", value: String(sys.table().apps.length) },
-            { id: "about.home", label: "Home", value: HOME_VERSION },
+            { id: "about.shell", label: "Pocket Shell", value: SHELL_VERSION },
             { id: "about.runtime", label: "Runtime", value: runtimeText() },
           ],
         },
@@ -416,7 +416,7 @@ function timezonePage(env: PageEnv, _stack: NavStack, layer: LayerContext): Page
   const content = table(env, layer, () => sys.macClock() ? [
       {
         cells: [{ id: `tz.${sys.offset()}`, label: offsetText(sys.offset()), value: "From the Mac", accessory: "check" as const, on: true }],
-        footer: "Home shows the paired Mac's time and time zone. The console's own clock is not used.",
+        footer: "Pocket Shell shows the paired Mac's time and time zone. The console's own clock is not used.",
       },
     ] : [
       {
@@ -429,7 +429,7 @@ function timezonePage(env: PageEnv, _stack: NavStack, layer: LayerContext): Page
           on: sys.offset() === zone.offset,
           run: () => sys.setOffset(zone.offset),
         })),
-        footer: "No Mac has linked since the console started, so Home shows the console's clock. Pair a Mac to take its time.",
+        footer: "No Mac has linked since the console started, so Pocket Shell shows the console's clock. Pair a Mac to take its time.",
       },
     ]);
   // Open on the zone in use.

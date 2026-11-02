@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// apps/pocket-home/ui/bar.tsx — the iOS 6 navigation bar at the 3DS's 0.82 scale:
+// apps/pocket-shell/ui/bar.tsx — the iOS 6 navigation bar at the 3DS's 0.82 scale:
 // a two-band gloss in blue, black or orange, an embossed title (or a title
 // view such as a segmented control), an arrow back button and an optional
 // right button. It names no image asset.

@@ -1,4 +1,4 @@
-# Pocket Home
+# Pocket Shell
 
 The launcher of `programs/m5stack-tab5`: the springboard of installed apps,
 Settings (Wi-Fi, Mac pairing by QR code, the paired Mac's app catalog) and
@@ -14,8 +14,8 @@ longer pins pocket-shell; changes to the launcher land here.
 
 | Field | Value |
 | --- | --- |
-| Package id | `dev.pocket-nexus.home` (its slot and `data.fs` tree are the same as before the move) |
-| Output | `home-main` |
+| Package id | `dev.pocket-nexus.shell` |
+| Output | `pocket-shell` |
 | Tick rate | 30 Hz (`app.tickHz`), the Tab5's cadence |
 | Surface | adaptive auxiliary, 320×240 to 640×720; 640×360 on the Tab5, presented at 2x |
 
@@ -24,7 +24,7 @@ longer pins pocket-shell; changes to the launcher land here.
 | Path | Contents |
 | --- | --- |
 | `main.tsx`, `app.tsx` | entry and root component: the springboard, the page stack, launch failures |
-| `springboard.tsx`, `layout.ts` | the Home screen: icon pages, page dots and the dock; the order is kept in `layout.json` in Home's `data.fs` root |
+| `springboard.tsx`, `layout.ts` | the Home screen: icon pages, page dots and the dock; the order is kept in `layout.json` in Pocket Shell's `data.fs` root |
 | `pages.tsx`, `scanner.tsx`, `store.tsx` | Settings: Wi-Fi, Pair a Mac (QR code from the camera), the Mac's catalog and installs |
 | `system.ts` | the launcher's app table, the Pocket Link and Wi-Fi state, polled every 30 frames (6 while a connection or pairing changes) |
 | `clock.ts`, `display.ts` | wall-clock fields from `Date.now()` with a fixed UTC offset; the display mode for Settings |
@@ -46,15 +46,15 @@ longer pins pocket-shell; changes to the launcher land here.
 ## Icons
 
 The build reads the committed PNGs in `art/icons/`. `bun
-tools/pocket-home-icons.ts [--only hn,mac]` re-renders them: Blender
+tools/pocket-shell-icons.ts [--only hn,mac]` re-renders them: Blender
 (`BLENDER`, default `/Applications/Blender.app/Contents/MacOS/Blender`) runs
-`tools/pocket-home-icons/icons.py` into `.pocket-build/home-icons/render`,
+`tools/pocket-shell-icons/icons.py` into `.pocket-build/pocket-shell-icons/render`,
 `nexus.ts` draws the Pocket Nexus picture with `@napi-rs/canvas`, and
 `bake.ts` writes the 24, 46 and 64 px textures and a contact sheet in
-`.pocket-build/validation/home-icons`. Cycles output differs a little between
+`.pocket-build/validation/pocket-shell-icons`. Cycles output differs a little between
 runs, so a re-render is a new set of pictures to review.
 
 ## Tests
 
-`tests/pocket-home-clock.test.ts` checks the clock arithmetic;
+`tests/pocket-shell-clock.test.ts` checks the clock arithmetic;
 `tools/test-worker-io.sh` runs it with the other host tests.
