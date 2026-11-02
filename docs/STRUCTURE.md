@@ -15,6 +15,7 @@ pocket-m5/
 ├─ platforms/esp-idf/           ESP-IDF components owned by this repository
 │  ├─ pocket_worker_esp/        FreeRTOS owner of the PocketJS worker core
 │  ├─ pocket_http_esp/          worker http node over esp_http_client
+│  ├─ pocket_mqtt_esp/          worker mqtt node over esp-mqtt (espressif/mqtt)
 │  └─ pocket_io_esp/            worker i2c and uart nodes
 ├─ programs/
 │  └─ m5stack-tab5/             IDF project: main, host config and contract, sdkconfig, partitions
@@ -26,7 +27,7 @@ pocket-m5/
 │  ├─ worker-http/              worker HTTP check for programs/m5stack-tab5
 │  ├─ unit-swap/                Port A units found and driven by the worker, one at a time
 │  └─ tab5-demo/                the Tab5 factory launcher (M5Tab5-UserDemo) on PocketJS
-├─ tests/                       host tests: HTTP record, I2C descriptors, sensor drivers,
+├─ tests/                       host tests: HTTP and MQTT records, I2C descriptors, sensor drivers,
 │                               Pocket Shell's clock, Unit Swap's conversions and records
 ├─ tools/                       pocket CLI wrapper, app packaging, formatter, host tests,
 │                               tab5-demo artwork conversion, Pocket Shell's icons,
@@ -37,8 +38,8 @@ pocket-m5/
 ## Ownership
 
 **PocketJS adapters are board-independent.** `pocket_worker_esp`,
-`pocket_http_esp` and `pocket_io_esp` implement the worker host and its
-`http`, `i2c` and `uart` nodes against ESP-IDF APIs. They take their configuration from the program, not from a
+`pocket_http_esp`, `pocket_mqtt_esp` and `pocket_io_esp` implement the worker
+host and its `http`, `mqtt`, `i2c` and `uart` nodes against ESP-IDF APIs. They take their configuration from the program, not from a
 board. A board support component for one board would go in
 `platforms/esp-idf/m5_bsp_<board>/`.
 

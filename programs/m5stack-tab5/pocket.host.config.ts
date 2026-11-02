@@ -8,6 +8,7 @@ import { defineHostConfig } from "@pocketjs/framework/host-config";
  * home control the program draws sends SELECT; the Tab5 keyboard on
  * Ext.Port1, when one is attached, sends text events. An app's worker domain
  * gets an `http` node (HTTP and HTTPS from the Tab5 over its Wi-Fi radio),
+ * an `mqtt` node (MQTT 3.1.1 and 5.0 sessions over TCP, TLS and WebSocket),
  * the `sys` and `porta` I2C nodes (the system bus and Port A) and the
  * `rs485` UART node. `globalThis.device` sets the backlight, the speaker
  * level, the power rails and header pins; `globalThis.audio` plays PCM

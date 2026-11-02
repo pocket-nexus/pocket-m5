@@ -18,6 +18,7 @@ idf_component_register(
         pocket_http_esp
         pocket_io_esp
         pocket_media
+        pocket_mqtt_esp
         pocket_system
         pocket_worker_esp
 )
