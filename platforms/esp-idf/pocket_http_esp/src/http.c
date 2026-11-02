@@ -20,6 +20,8 @@
  * deadline. */
 #define SLICE_MS 500u
 #define TASK_STACK 12288u
+/* How often a request to the companion looks for its next fact. */
+#define COMPANION_POLL_MS 10u
 
 static const char *TAG = "pocket_http";
 
@@ -39,6 +41,9 @@ typedef struct {
   pocket_worker *worker;
   uint32_t handle, request;
   int64_t deadline;
+  /* The descriptor as opened, for the companion transport. */
+  uint8_t opened[POCKET_HTTP_ESP_RECORD];
+  size_t opened_length;
   /* Owned by the request task while the slot runs. */
   pocket_http_esp_request descriptor;
   char url[POCKET_HTTP_ESP_URL];
@@ -47,6 +52,7 @@ typedef struct {
   char fields[FIELD_BYTES];
   size_t fields_length, field_count;
   char record[POCKET_HTTP_ESP_RECORD];
+  pocket_http_esp_fact fact;
 } slot;
 
 struct pocket_http_esp {
@@ -394,12 +400,59 @@ static bool follow(slot *s, int code, const char *location) {
   return true;
 }
 
+/* A request to companion.pocket: the companion transport performs it and
+ * the task forwards its headers, data and end facts as they arrive. */
+static int32_t perform_companion(slot *s) {
+  const pocket_http_esp_companion *c = s->driver->config.companion;
+  char error[160] = "";
+  const uint32_t id =
+      c->start(c->context, s->opened, s->opened_length, error, sizeof error);
+  if (!id)
+    return failure(s, POCKET_WORKER_FAILED, "%s",
+                   error[0] ? error
+                            : "unavailable: the companion took no request");
+  s->sent = true;
+  pocket_http_esp_fact *fact = &s->fact;
+  int32_t status;
+  for (;;) {
+    if (stopped(s, "the companion did not finish the request", &status))
+      break;
+    if (!c->take(c->context, id, fact)) {
+      vTaskDelay(pdMS_TO_TICKS(COMPANION_POLL_MS));
+      continue;
+    }
+    if (fact->kind == POCKET_WORKER_END) {
+      if (fact->status == POCKET_WORKER_OK)
+        ESP_LOGI(TAG, "%.200s through the companion %lluB", s->url,
+                 (unsigned long long)s->delivered);
+      if (fact->status == POCKET_WORKER_OK || !fact->length)
+        return fact->status;
+      return failure(s, fact->status, "%.*s", (int)fact->length,
+                     (const char *)fact->bytes);
+    }
+    if (!emit(s, fact->kind, fact->status, fact->offset, fact->bytes,
+              fact->length)) {
+      if (!stopped(s, "the worker did not take the response", &status))
+        status = POCKET_WORKER_FAILED;
+      break;
+    }
+    if (fact->kind == POCKET_WORKER_HEADERS)
+      s->field_count = 1;
+    else if (fact->kind == POCKET_WORKER_DATA)
+      s->delivered = fact->offset + fact->length;
+  }
+  c->close(c->context, id);
+  return status;
+}
+
 static int32_t perform(slot *s) {
   pocket_http_esp *d = s->driver;
   strcpy(s->url, s->descriptor.url);
   s->sent = false;
   s->delivered = 0;
   s->fields_length = s->field_count = 0;
+  if (d->config.companion && pocket_http_esp_companion_url(s->url))
+    return perform_companion(s);
   if (d->config.online && !d->config.online(d->config.context))
     return failure(s, POCKET_WORKER_FAILED,
                    "unavailable: the network has no address");
@@ -466,8 +519,11 @@ static int32_t driver_open(void *opaque, pocket_worker *worker, uint32_t handle,
   if (!s)
     return POCKET_WORKER_BUSY;
   /* An open slot belongs to this callback until start. */
-  if (pocket_http_esp_parse(bytes, length, &s->descriptor))
+  if (pocket_http_esp_parse(bytes, length, &s->descriptor)) {
+    memcpy(s->opened, bytes, length);
+    s->opened_length = length;
     return POCKET_WORKER_OK;
+  }
   lock(d);
   s->phase = SLOT_FREE;
   unlock(d);

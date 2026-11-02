@@ -448,6 +448,12 @@ bool pocket_http_esp_same_origin(const pocket_http_esp_url *a,
          !strcmp(a->host, b->host);
 }
 
+bool pocket_http_esp_companion_url(const char *url) {
+  pocket_http_esp_url parsed;
+  return url && pocket_http_esp_url_parse(url, &parsed) &&
+         !strcmp(parsed.host, POCKET_HTTP_ESP_COMPANION_HOST);
+}
+
 static bool has_scheme(const char *text) {
   if (!isalpha((unsigned char)text[0]))
     return false;

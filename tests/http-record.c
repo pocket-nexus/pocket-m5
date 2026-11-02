@@ -95,6 +95,21 @@ int main(void) {
   assert(!pocket_http_esp_url_parse("https://[::1/", &v));
   assert(!pocket_http_esp_url_parse("mailto:a@b", &v));
 
+  /* companion.pocket goes to the companion under either scheme, on any port,
+   * as the companion matches the host; nothing else does. */
+  assert(pocket_http_esp_companion_url("https://companion.pocket/glyphs/a"));
+  assert(pocket_http_esp_companion_url("http://companion.pocket"));
+  assert(pocket_http_esp_companion_url("HTTPS://Companion.Pocket:8443/x?y"));
+  assert(pocket_http_esp_companion_url("https://u@companion.pocket/x"));
+  assert(!pocket_http_esp_companion_url("https://companion.pocket.example/x"));
+  assert(
+      !pocket_http_esp_companion_url("https://example.com/companion.pocket"));
+  assert(
+      !pocket_http_esp_companion_url("https://companion.pocket@example.com/"));
+  assert(!pocket_http_esp_companion_url("https://xcompanion.pocket/"));
+  assert(!pocket_http_esp_companion_url("ftp://companion.pocket/"));
+  assert(!pocket_http_esp_companion_url(NULL));
+
   resolves("https://a.b/x/y?q#f", "https://c.d/e", "https://c.d/e");
   resolves("https://a.b/x/y", "//c.d/e", "https://c.d/e");
   resolves("http://a.b/x/y?q", "/z", "http://a.b/z");

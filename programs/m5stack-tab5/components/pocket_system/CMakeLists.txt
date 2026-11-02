@@ -10,6 +10,7 @@ idf_component_register(
         "src/flash_store.c"
         "src/wifi.c"
         "src/clock.c"
+        "src/companion.c"
         "src/fetch.c"
         "src/install.c"
         "src/install_uri.c"
@@ -18,13 +19,16 @@ idf_component_register(
         "${shared}/jscan.c"
         "${shared}/launcher.c"
         "${shared}/link.c"
+        "${shared}/link_http.c"
         "${shared}/link_proto.c"
         "${shared}/sha256.c"
     INCLUDE_DIRS "include"
     PRIV_INCLUDE_DIRS "src" "${shared}"
     REQUIRES pocket_runtime pocket_guest_quickjs
-    PRIV_REQUIRES esp-tls esp_event esp_http_client esp_http_server esp_netif esp_partition esp_timer esp_wifi fatfs log lwip mbedtls nvs_flash spi_flash vfs wear_levelling
+    PRIV_REQUIRES esp-tls esp_event esp_http_client esp_http_server esp_netif esp_partition esp_timer esp_wifi fatfs log lwip mbedtls nvs_flash pocket_http_esp spi_flash vfs wear_levelling
     REQUIRED_IDF_TARGETS esp32p4
 )
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wall -Wextra -Werror)
+# link.c carries the worker's net.stream requests (link_http.c).
+target_compile_definitions(${COMPONENT_LIB} PRIVATE POCKETJS_WORKER_HTTP)

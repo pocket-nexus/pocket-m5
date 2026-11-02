@@ -949,6 +949,7 @@ static void start_worker_host(tab5_host_t *host) {
       .task_stack_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,
       .task_core = 1,
       .task_priority = TAB5_HTTP_PRIORITY,
+      .companion = pocketjs_system_companion(),
   };
   pocket_http_esp *driver = pocket_http_esp_create(&http);
   assert(driver != NULL);
