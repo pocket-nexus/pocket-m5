@@ -74,6 +74,9 @@ static const char *TAG = "pocketjs_tab5";
 #define TAB5_MAX_CONTACTS 5U
 /* QuickJS heap of the guest. */
 #define TAB5_GUEST_HEAP (24U * 1024U * 1024U)
+/* Decoded package textures kept past a tick; beyond it the runtime releases
+ * the least recently drawn and decodes them from flash again when drawn. */
+#define TAB5_TEXTURE_BUDGET (2U * 1024U * 1024U)
 /* The stack of the task running guest frames, and of the task evaluating
  * the guest: Solid's reactive graph recurses through the stack in a tick
  * (Pocket Shell's Settings page passes 64 KB). QuickJS stops a script this far
@@ -707,6 +710,9 @@ static int32_t boot_guest(
   memcpy(config.profile_hash, pocket_profile.profile_hash, 32);
   running->runtime = pocket_runtime_create(&config);
   if (!running->runtime)
+    return POCKET_STATUS_FAILED;
+  if (pocket_runtime_set_texture_budget(
+          running->runtime, TAB5_TEXTURE_BUDGET) != POCKET_STATUS_OK)
     return POCKET_STATUS_FAILED;
   const pocket_guest_idf_config guest_config = {
       .heap_limit = TAB5_GUEST_HEAP,
