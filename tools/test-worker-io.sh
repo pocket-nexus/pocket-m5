@@ -17,4 +17,9 @@ ${CC:-cc} -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
   programs/m5stack-tab5/components/pocket_system/src/install_uri.c \
   -o "$validation_dir/install-uri"
 "$validation_dir/install-uri"
+bun tests/mqtt-vectors.ts "$validation_dir/mqtt-vectors.h"
+${CC:-cc} -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
+  -I "$validation_dir" -I platforms/esp-idf/pocket_mqtt_esp/src tests/mqtt-record.c \
+  platforms/esp-idf/pocket_mqtt_esp/src/record.c -o "$validation_dir/mqtt-record"
+"$validation_dir/mqtt-record"
 bun test ./tests/sensors.test.ts ./tests/rtc-setting.test.ts ./tests/pocket-shell-clock.test.ts ./tests/unit-swap.test.ts
