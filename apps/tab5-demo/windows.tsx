@@ -531,7 +531,7 @@ export function StationWindow(props: Opened) {
       const join = () => {
         const saved = status()?.saved.find(slot => slot.ssid === network.ssid);
         const ok = saved ? connectSavedNetwork(saved.slot) : !network.secure && joinNetwork(network.ssid, "");
-        notify(ok ? `Joining ${network.ssid}` : network.secure ? "Join secured networks in Pocket Home" : "The radio refused");
+        notify(ok ? `Joining ${network.ssid}` : network.secure ? "Join secured networks in Pocket Shell" : "The radio refused");
       };
       return <>
         <Box x={12} y={y - 11} w={326} h={22} radius={6} color="#383838" />

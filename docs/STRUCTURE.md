@@ -5,7 +5,7 @@ PocketJS as the `third_party/pocketjs` submodule and follows the directory
 split of pocketjs `main` (pocket-nexus/pocketjs#603): **platforms** hold SDK
 and board drivers, and **programs** compose drivers into firmware with a
 host config and the **host contract** (`pocket.host.json`), the facts apps
-compile and are admitted against. The launcher, Pocket Home, is `apps/pocket-home`.
+compile and are admitted against. The launcher, Pocket Shell, is `apps/pocket-shell`.
 
 ```text
 pocket-m5/
@@ -22,14 +22,14 @@ pocket-m5/
 │     │                         pocket_device (this program only)
 │     └─ pocket.host.json       tab5-home: 640x360 auxiliary surface, presented at 2x
 ├─ apps/
-│  ├─ pocket-home/              the launcher, from pocket-shell's shells/3ds/home
+│  ├─ pocket-shell/             the launcher, from pocket-shell's shells/3ds/home
 │  ├─ worker-http/              worker HTTP check for programs/m5stack-tab5
 │  ├─ unit-swap/                Port A units found and driven by the worker, one at a time
 │  └─ tab5-demo/                the Tab5 factory launcher (M5Tab5-UserDemo) on PocketJS
 ├─ tests/                       host tests: HTTP record, I2C descriptors, sensor drivers,
-│                               Pocket Home's clock, Unit Swap's conversions and records
+│                               Pocket Shell's clock, Unit Swap's conversions and records
 ├─ tools/                       pocket CLI wrapper, app packaging, formatter, host tests,
-│                               tab5-demo artwork conversion, Pocket Home's icons,
+│                               tab5-demo artwork conversion, Pocket Shell's icons,
 │                               firmware packaging (firmware-dist.ts)
 └─ docs/                        repository and worker reference
 ```
@@ -48,7 +48,7 @@ display, input and renderers, starts the launcher services and boots one
 runtime per app. The program owns its host contract (`pocket.host.json`);
 the host config `pocket.host.config.ts` names it. The build exports
 `pocket_profile.h`, whose `pocket_profile.facts` record the runtime admits
-packages against, and compiles Pocket Home (`apps/pocket-home`) and the
+packages against, and compiles Pocket Shell (`apps/pocket-shell`) and the
 bundled apps with the same host config.
 
 **Components one program uses stay with that program.**
@@ -88,6 +88,6 @@ archive is passed with `POCKET_RUNTIME_ARCHIVE`.
 The root `package.json` declares `third_party/pocketjs` as a Bun workspace, so
 `@pocketjs/framework` resolves to the submodule and its dependencies install
 once at the root. `tools/pocket` runs the submodule's CLI; the CMake helpers
-call it through `POCKETJS_CLI`. The apps under `apps/`, Pocket Home
+call it through `POCKETJS_CLI`. The apps under `apps/`, Pocket Shell
 included, compile with that CLI, and their imports resolve to the root's
 `node_modules`.

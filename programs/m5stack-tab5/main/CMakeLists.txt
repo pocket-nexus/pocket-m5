@@ -24,21 +24,21 @@ idf_component_register(
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wall -Wextra -Werror)
 
-# The launcher is Pocket Home (apps/pocket-home), compiled against the
+# The launcher is Pocket Shell (apps/pocket-shell), compiled against the
 # host config pocket.host.config.ts. A package the host contract admits
 # replaces it.
-set(POCKETJS_TAB5_HOME_PACKAGE "" CACHE FILEPATH "Launcher package to embed instead of apps/pocket-home")
-if(POCKETJS_TAB5_HOME_PACKAGE)
+set(POCKETJS_TAB5_SHELL_PACKAGE "" CACHE FILEPATH "Launcher package to embed instead of apps/pocket-shell")
+if(POCKETJS_TAB5_SHELL_PACKAGE)
     pocketjs_embed_package(
         TARGET ${COMPONENT_LIB}
         NAME app
-        PACKAGE "${POCKETJS_TAB5_HOME_PACKAGE}"
+        PACKAGE "${POCKETJS_TAB5_SHELL_PACKAGE}"
         HOST_CONFIG "../pocket.host.config.ts")
 else()
     pocketjs_compile_app(
         TARGET ${COMPONENT_LIB}
         NAME app
-        MANIFEST "../../../apps/pocket-home/pocket.app.json"
+        MANIFEST "../../../apps/pocket-shell/pocket.app.json"
         HOST_CONFIG "../pocket.host.config.ts")
 endif()
 

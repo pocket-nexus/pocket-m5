@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// tools/pocket-home-icons/bake.ts — turn icons.py's 512 px Blender renders into
-// the textures Home draws, and write a contact sheet.
+// tools/pocket-shell-icons/bake.ts — turn icons.py's 512 px Blender renders into
+// the textures Pocket Shell draws, and write a contact sheet.
 //
-//   bun tools/pocket-home-icons/bake.ts .pocket-build/home-icons/render [sheet dir]
+//   bun tools/pocket-shell-icons/bake.ts .pocket-build/pocket-shell-icons/render [sheet dir]
 //
 // Each icon is drawn at a few sizes (24 in table rows and the banner, 46 on
 // the springboard and the dock, 64 for the store's detail icon) and
@@ -19,7 +19,7 @@
 // supersampled), the iOS 6 gloss (a white wash over the top half whose lower
 // edge is a shallow arc), a rim lit along the top and shaded along the
 // bottom, and, at the springboard's 46, a soft shadow below. `plain` is the
-// same finish with no picture: Home lays it over the tint gradient of an app
+// same finish with no picture: Pocket Shell lays it over the tint gradient of an app
 // that ships no icon.
 
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -57,10 +57,10 @@ const ICONS: Record<string, number[]> = {
   photos: [24, 46, 64],
 };
 
-const RENDERS = resolve(process.argv[2] ?? ".pocket-build/home-icons/render");
-/** Where the textures go: apps/pocket-home/art/icons, or a 4th argument
+const RENDERS = resolve(process.argv[2] ?? ".pocket-build/pocket-shell-icons/render");
+/** Where the textures go: apps/pocket-shell/art/icons, or a 4th argument
  *  to review a bake before copying it in. */
-const OUT = process.argv[4] ? resolve(process.argv[4]) : resolve(import.meta.dir, "../../apps/pocket-home/art/icons");
+const OUT = process.argv[4] ? resolve(process.argv[4]) : resolve(import.meta.dir, "../../apps/pocket-shell/art/icons");
 
 type Rgba = Float32Array; // straight alpha, 0..1
 
@@ -301,7 +301,7 @@ for (const entry of baked) {
   blit(entry.rgba, entry.tex, 10 + column * 140, top, 1);
   if (entry.size !== 64) blit(entry.rgba, entry.tex, 450 + column * 270, top, entry.size === 24 ? 4 : 2);
 }
-const sheetDir = resolve(process.argv[3] ?? ".pocket-build/validation/home-icons");
+const sheetDir = resolve(process.argv[3] ?? ".pocket-build/validation/pocket-shell-icons");
 mkdirSync(sheetDir, { recursive: true });
 writeFileSync(join(sheetDir, "contact-sheet.png"), encodePNG(sheet, W, sheetH));
 console.log(`contact sheet -> ${join(sheetDir, "contact-sheet.png")}`);

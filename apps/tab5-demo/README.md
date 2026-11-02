@@ -70,18 +70,18 @@ both interrupts. The BMI270 feature image is from Bosch SensorAPI v2.86.1;
 
 ## Build
 
-The firmware bundles the demo (`POCKETJS_TAB5_BUNDLED_APPS`): Pocket Home
-lists it as "Tab5 Demo", and the home ball returns to Pocket Home. Built on
-its own and embedded as the home package, the demo runs in place of Pocket
-Home and the home ball has nothing to return to:
+The firmware bundles the demo (`POCKETJS_TAB5_BUNDLED_APPS`): Pocket Shell
+lists it as "Tab5 Demo", and the home ball returns to Pocket Shell. Built on
+its own and embedded as the launcher package, the demo runs in place of Pocket
+Shell and the home ball has nothing to return to:
 
 ```sh
 bun run app build apps/tab5-demo/pocket.app.json
 idf.py -C programs/m5stack-tab5 \
-  -DPOCKETJS_TAB5_HOME_PACKAGE=$PWD/.pocket-build/apps/tab5-demo.pocket build
+  -DPOCKETJS_TAB5_SHELL_PACKAGE=$PWD/.pocket-build/apps/tab5-demo.pocket build
 ```
 
-Building with `-DPOCKETJS_TAB5_HOME_PACKAGE=` restores Pocket Home. The home
+Building with `-DPOCKETJS_TAB5_SHELL_PACKAGE=` restores Pocket Shell. The home
 ball rests over the Com Monitor and Camera tiles; drag it aside to reach
 them.
 The baked glyphs cover printable ASCII; a file name outside it shows `?`.

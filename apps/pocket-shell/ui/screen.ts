@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// apps/pocket-home/ui/screen.ts — the one place a program learns the surface it
+// apps/pocket-shell/ui/screen.ts — the one place a program learns the surface it
 // draws on. Every manifest declares an adaptive auxiliary surface (from
 // 320x240 up) and the host presents its own size, so the size is read at run
 // time. Programs lay out by size class:

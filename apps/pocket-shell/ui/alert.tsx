@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// apps/pocket-home/ui/alert.tsx — the iOS 6 alert view: a dimmed screen, a blue
+// apps/pocket-shell/ui/alert.tsx — the iOS 6 alert view: a dimmed screen, a blue
 // glass box with a white rim, an embossed title, a message and two buttons.
 // While it is up it owns the touch screen and the A/B buttons.
 

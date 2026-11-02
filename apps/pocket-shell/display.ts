@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// apps/pocket-home/display.ts — the console's display mode, for Settings'
+// apps/pocket-shell/display.ts — the console's display mode, for Settings'
 // Dual Screen switch.
 //
 // "dual": the agent lives on the top screen (the 3DS's default). "single":

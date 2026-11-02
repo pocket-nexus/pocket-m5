@@ -11,14 +11,14 @@ phase, byte count, resource status and HTTP status on the `progress`
 snapshot. The worker prints each headers record and error fact on the serial
 console.
 
-The firmware bundles the app (`POCKETJS_TAB5_BUNDLED_APPS`): Pocket Home
-lists it as "Worker HTTP". Built on its own and embedded as the home
-package, it runs in place of Pocket Home:
+The firmware bundles the app (`POCKETJS_TAB5_BUNDLED_APPS`): Pocket Shell
+lists it as "Worker HTTP". Built on its own and embedded as the launcher
+package, it runs in place of Pocket Shell:
 
 ```sh
 bun run app build apps/worker-http/pocket.app.json
 idf.py -C programs/m5stack-tab5 \
-  -DPOCKETJS_TAB5_HOME_PACKAGE=$PWD/.pocket-build/apps/worker-http.pocket build
+  -DPOCKETJS_TAB5_SHELL_PACKAGE=$PWD/.pocket-build/apps/worker-http.pocket build
 ```
 
 The baked

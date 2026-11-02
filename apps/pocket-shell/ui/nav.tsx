@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// apps/pocket-home/ui/nav.tsx — a UINavigationController for the touch surface
+// apps/pocket-shell/ui/nav.tsx — a UINavigationController for the touch surface
 // (screen.ts): a stack of pages that push in from the right and pop back,
 // each with its own navigation bar, scroll position and d-pad focus.
 //

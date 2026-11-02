@@ -2,7 +2,7 @@
 
 PocketJS firmware for M5Stack boards. Apps are TypeScript/JSX packages that
 run in a QuickJS guest on the PocketJS runtime; the firmware embeds Pocket
-Home as its launcher, installs packages from a paired Mac over the Pocket
+Shell as its launcher, installs packages from a paired Mac over the Pocket
 Link and switches between them on the device.
 
 | Board | SoC | Display |
@@ -10,11 +10,11 @@ Link and switches between them on the device.
 | M5Stack Tab5 | ESP32-P4 | 720×1280 MIPI-DSI, capacitive touch |
 
 [`programs/m5stack-tab5`](programs/m5stack-tab5/README.md) is the Tab5
-firmware: Pocket Home 640×360 at 2x, turned onto the panel; installs over the
+firmware: Pocket Shell 640×360 at 2x, turned onto the panel; installs over the
 Pocket Link; a floating home ball; Wi-Fi with an optional access point,
 SNTP clock, worker HTTP, I2C and RS485 nodes, camera, media, PCM audio and
-microphones, board controls and keyboard. Pocket Home is
-[`apps/pocket-home`](apps/pocket-home/README.md), taken from
+microphones, board controls and keyboard. Pocket Shell is
+[`apps/pocket-shell`](apps/pocket-shell/README.md), taken from
 [pocket-shell](https://github.com/pocket-nexus/pocket-shell) at `188c46c`;
 the applets (Hacker News, YouTube, Notes and the others) stay in pocket-shell.
 App workers get an `http` node (`pocket_http_esp`) and `i2c` and `uart` nodes
@@ -49,10 +49,10 @@ idf.py -p <port> flash monitor
 ```
 
 The firmware embeds this repository's apps (`apps/tab5-demo`,
-`apps/worker-http`, `apps/unit-swap`) and installs them at boot, so Pocket Home lists them
+`apps/worker-http`, `apps/unit-swap`) and installs them at boot, so Pocket Shell lists them
 without a companion; applets from a paired Mac's catalog (pocket-shell's
 `bun run offer` with Pocket Companion running) install beside them. The home
-ball returns to Pocket Home. `bun run app build <pocket.app.json>` compiles
+ball returns to Pocket Shell. `bun run app build <pocket.app.json>` compiles
 an app of this repository with the firmware's host config into
 `.pocket-build/apps/`.
 
@@ -116,6 +116,6 @@ driver contracts and directory layout come from pocket-nexus/pocketjs#603.
 ## License
 
 MIT, see [LICENSE](LICENSE). The files taken from pocket-shell
-(`apps/pocket-home`, `tools/pocket-home-icons.ts`, `tools/pocket-home-icons/`,
-`tests/pocket-home-clock.test.ts`) keep their `GPL-3.0-or-later` lines; a
-firmware image that embeds Pocket Home contains that code.
+(`apps/pocket-shell`, `tools/pocket-shell-icons.ts`, `tools/pocket-shell-icons/`,
+`tests/pocket-shell-clock.test.ts`) keep their `GPL-3.0-or-later` lines; a
+firmware image that embeds Pocket Shell contains that code.

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// apps/pocket-home/store.tsx — the Mac: the apps the linked Mac offers this
+// apps/pocket-shell/store.tsx — the Mac: the apps the linked Mac offers this
 // console, as an App Store list. Each row's pill reads GET, UPDATE or OPEN
 // and turns into a progress bar while the package streams in; tapping the
 // rest of a row opens the app's page (icon, version, size, description).

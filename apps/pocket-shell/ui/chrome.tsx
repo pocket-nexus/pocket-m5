@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// apps/pocket-home/ui/chrome.tsx — iOS 6 chrome at the 3DS's 0.82 scale: the
+// apps/pocket-shell/ui/chrome.tsx — iOS 6 chrome at the 3DS's 0.82 scale: the
 // pinstriped grouped background, ON/OFF switches, glossy icon tiles, the
 // status bar and the wallpaper both screens share. The navigation bar lives
 // in bar.tsx, which names no image, so an app that only needs the bar (Hacker
@@ -258,7 +258,7 @@ export interface AppTint {
   letters: string;
 }
 
-/** An app's icon: its baked art when Home has one, else a deterministic tint
+/** An app's icon: its baked art when Pocket Shell has one, else a deterministic tint
  *  and letters. */
 export function appTint(id: string, title: string): AppTint {
   let hash = 0x811c9dc5;
