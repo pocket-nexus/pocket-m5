@@ -19,7 +19,7 @@ pocket-nexus/pocketjs#617.
 `pocket.host.json` (format `pocket-host/2`) states the facts: one cadence,
 30 Hz; a 400x240 primary viewport and the 640x360 auxiliary surface, both
 `native` at raster density 1; animation class `repaint`; the capabilities;
-and a worker table of one `http`, two `i2c` and one `uart` node, the nodes
+and a worker table of one `http`, one `mqtt`, two `i2c` and one `uart` node, the nodes
 `main.c` gives every app's worker domain.
 
 The firmware is a launcher console: `components/pocket_system`
@@ -33,7 +33,7 @@ wall clock from SNTP. The build compiles Pocket Shell
 launcher and boots one runtime per app; SELECT from the home control returns
 to the launcher. The build also compiles the apps that
 `POCKETJS_TAB5_BUNDLED_APPS` lists (default
-`apps/tab5-demo;apps/worker-http;apps/unit-swap`)
+`apps/tab5-demo;apps/worker-http;apps/unit-swap;apps/worker-mqtt`)
 and embeds them; `pocketjs_system_start` admits each once and serves it from
 flash as an installed app, so a bundled app is never copied to the card or
 into PSRAM. `-DPOCKETJS_TAB5_SHELL_PACKAGE=<package.pocket>` embeds a package
@@ -71,11 +71,12 @@ point beside the station connection (APSTA), with an HTTP page at
 
 A UI realm has no network module. An app whose package carries a worker
 domain (`domains.worker`, package section 8, or section 9 as bytecode) gets
-its own worker runtime (`pocket_worker_esp`) with four nodes:
+its own worker runtime (`pocket_worker_esp`) with five nodes:
 
 | Node | Kind | Driver |
 | --- | --- | --- |
 | `http` | `http` | `pocket_http_esp`: HTTP and HTTPS the Tab5 makes over Wi-Fi (ESP certificate bundle, mbedTLS buffers in PSRAM, certificate dates checked against the SNTP clock) |
+| `mqtt` | `mqtt` | `pocket_mqtt_esp`: three MQTT 3.1.1 and 5.0 sessions over TCP, TLS, WebSocket and secure WebSocket (esp-mqtt from `espressif/mqtt` 1.1.0; buffers, task stacks and outbox in PSRAM; client tasks on core 1) |
 | `sys` | `i2c` | `pocket_io_esp` on the BSP's system bus (G31 SDA, G32 SCL, 400 kHz): any address, shared with the board's drivers |
 | `porta` | `i2c` | `pocket_io_esp` software bus on Port A (G53 SDA, G54 SCL, 100 kHz), both hardware controllers being taken |
 | `rs485` | `uart` | `pocket_io_esp` on UART1 (TX G20, RX G21) in RS485 half duplex, driver enable on G34 |
@@ -84,13 +85,16 @@ The worker starts before the realm evaluates, its channels mirror into the
 realm once per frame (`before_tick`), and it stops before the realm and the
 package bytes are released. Its QuickJS heap (1 MiB) and its 24 KiB task
 stack are in PSRAM; it runs on core 1 at priority 3, below the render lane,
-the I2C executors at 4 and the two HTTP request tasks at 2. An app whose
+the I2C executors at 4, and the two HTTP request tasks and the MQTT control
+and client tasks at 2. An app whose
 worker fails returns to the launcher with the failure shown. The `tab5-home`
-host contract lists `runtime.worker`, `net.http`, `io.i2c`, `io.uart`,
+host contract lists `runtime.worker`, `net.http`, `net.mqtt`, `io.i2c`, `io.uart`,
 `audio.pcm`, `audio.capture` and `system.device`.
 `pocket_worker_esp` requires ESP-IDF 6.2.x. `apps/worker-http` is the HTTP
 device check: it joins a Wi-Fi network and fetches a URL once connected and
-on each tap. `apps/unit-swap` drives one Port A unit at a time (ENV III,
+on each tap. `apps/worker-mqtt` is the MQTT device check: it opens a broker
+session and runs publish, subscribe, retained, staged-payload and MQTT 5
+property checks. `apps/unit-swap` drives one Port A unit at a time (ENV III,
 RFID 2, Ultrasonic I2C) and switches drivers when the unit changes.
 `apps/tab5-demo` exercises the other nodes and services.
 

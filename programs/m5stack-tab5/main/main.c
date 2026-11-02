@@ -10,9 +10,10 @@
  * it and then slides makes a gesture named by its direction. A Tab5 keyboard
  * on Ext.Port1 sends text events. An app that declares a worker domain gets
  * its own worker runtime (pocket_worker_esp) with an `http` node, HTTP and
- * HTTPS over the radio (pocket_http_esp), two `i2c` nodes, the system bus
- * (`sys`) and Port A (`porta`), and a `uart` node on the RS485 port
- * (`rs485`, pocket_io_esp). An app whose plan enables system.device,
+ * HTTPS over the radio (pocket_http_esp), an `mqtt` node, MQTT 3.1.1 and 5.0
+ * sessions (pocket_mqtt_esp), two `i2c` nodes, the system bus (`sys`) and
+ * Port A (`porta`), and a `uart` node on the RS485 port (`rs485`,
+ * pocket_io_esp). An app whose plan enables system.device,
  * audio.pcm or audio.capture gets `globalThis.device` (pocket_device) and
  * `globalThis.audio` (pocket_audio). */
 #include <assert.h>
@@ -45,6 +46,7 @@
 #include "pocket/guest_idf.h"
 #include "pocket/http_esp.h"
 #include "pocket/io_esp.h"
+#include "pocket/mqtt_esp.h"
 #include "pocket/package_source.h"
 #include "pocket/runner.h"
 #include "pocket/system.h"
@@ -103,12 +105,13 @@ static const char *TAG = "pocketjs_tab5";
 #define TAB5_STORE "/pocket"
 /* An app's worker domain: its QuickJS heap and task stack in PSRAM, which
  * leaves the internal RAM to the strips. It runs on core 1 below the render
- * lane (priority 5), and its HTTP requests below it. */
+ * lane (priority 5), and its HTTP requests and MQTT sessions below it. */
 #define TAB5_WORKER_HEAP (1024U * 1024U)
 #define TAB5_WORKER_STACK (24U * 1024U)
 #define TAB5_WORKER_STACK_LIMIT (16U * 1024U)
 #define TAB5_WORKER_PRIORITY 3U
 #define TAB5_HTTP_PRIORITY 2U
+#define TAB5_MQTT_PRIORITY 2U
 /* Port A (the red Grove port): a software I2C bus, both hardware
  * controllers being taken by the system bus and the keyboard's. */
 #define TAB5_PORTA_SDA 53
@@ -193,7 +196,7 @@ typedef struct {
   bool switch_signalled;
   /* The worker nodes and settings every app's worker domain gets; set when
    * the running app's worker failed. */
-  pocket_worker_node worker_nodes[4];
+  pocket_worker_node worker_nodes[5];
   pocket_worker_esp_config worker_config;
   uint32_t worker_generation;
   volatile bool worker_failed;
@@ -929,12 +932,12 @@ static bool axi_dma_free(void) {
   return true;
 }
 
-static bool http_online(void *context) {
+static bool network_online(void *context) {
   (void)context;
   return pocketjs_system_online();
 }
 
-static bool http_clock_wait(void *context, uint32_t ms) {
+static bool network_clock_wait(void *context, uint32_t ms) {
   (void)context;
   return pocketjs_system_clock_wait(ms);
 }
@@ -943,8 +946,8 @@ static bool http_clock_wait(void *context, uint32_t ms) {
 static void start_worker_host(tab5_host_t *host) {
   const pocket_http_esp_config http = {
       .struct_size = sizeof(http),
-      .online = http_online,
-      .clock_wait = http_clock_wait,
+      .online = network_online,
+      .clock_wait = network_clock_wait,
       .memory_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,
       .task_stack_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,
       .task_core = 1,
@@ -958,6 +961,27 @@ static void start_worker_host(tab5_host_t *host) {
       .kind = POCKET_WORKER_HTTP,
       .name = "http",
       .driver = pocket_http_esp_driver(driver),
+  };
+  /* Three broker sessions at once (a closed one keeps its slot until its
+   * client stopped); each has a control task and an esp-mqtt client task on
+   * core 1, their stacks and buffers in PSRAM. */
+  const pocket_mqtt_esp_config mqtt = {
+      .struct_size = sizeof(mqtt),
+      .online = network_online,
+      .clock_wait = network_clock_wait,
+      .memory_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,
+      .task_stack_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT,
+      .task_core = 1,
+      .task_priority = TAB5_MQTT_PRIORITY,
+      .client_priority = TAB5_MQTT_PRIORITY,
+  };
+  pocket_mqtt_esp *mqtt_driver = pocket_mqtt_esp_create(&mqtt);
+  assert(mqtt_driver != NULL);
+  host->worker_nodes[4] = (pocket_worker_node){
+      .struct_size = sizeof(host->worker_nodes[4]),
+      .kind = POCKET_WORKER_MQTT,
+      .name = "mqtt",
+      .driver = pocket_mqtt_esp_driver(mqtt_driver),
   };
   /* The system bus is the BSP's: the IO expanders, touch, codecs, camera,
    * RTC, IMU and power monitor share it, and the IDF bus lock serializes

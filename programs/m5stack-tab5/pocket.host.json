@@ -33,6 +33,7 @@
     "media.playback",
     "runtime.worker",
     "net.http",
+    "net.mqtt",
     "io.i2c",
     "io.uart",
     "audio.pcm",
@@ -40,7 +41,7 @@
     "system.device"
   ],
   "worker": {
-    "nodes": { "http": 1, "i2c": 2, "uart": 1 }
+    "nodes": { "http": 1, "mqtt": 1, "i2c": 2, "uart": 1 }
   },
   "bytecode": { "engine": "esp-idf-quickjs-ng-0.14.0", "source": "drop" }
 }

@@ -12,12 +12,13 @@ Link and switches between them on the device.
 [`programs/m5stack-tab5`](programs/m5stack-tab5/README.md) is the Tab5
 firmware: Pocket Shell 640×360 at 2x, turned onto the panel; installs over the
 Pocket Link; a floating home ball; Wi-Fi with an optional access point,
-SNTP clock, worker HTTP, I2C and RS485 nodes, camera, media, PCM audio and
+SNTP clock, worker HTTP, MQTT, I2C and RS485 nodes, camera, media, PCM audio and
 microphones, board controls and keyboard. Pocket Shell is
 [`apps/pocket-shell`](apps/pocket-shell/README.md), taken from
 [pocket-shell](https://github.com/pocket-nexus/pocket-shell) at `188c46c`;
 the applets (Hacker News, YouTube, Notes and the others) stay in pocket-shell.
-App workers get an `http` node (`pocket_http_esp`) and `i2c` and `uart` nodes
+App workers get an `http` node (`pocket_http_esp`), an `mqtt` node
+(`pocket_mqtt_esp`, MQTT 3.1.1 and 5.0) and `i2c` and `uart` nodes
 (`pocket_io_esp`); see [Worker domain](docs/WORKER.md).
 [`apps/tab5-demo`](apps/tab5-demo/README.md) is the Tab5 factory firmware's
 launcher (M5Tab5-UserDemo) on PocketJS.
@@ -49,7 +50,7 @@ idf.py -p <port> flash monitor
 ```
 
 The firmware embeds this repository's apps (`apps/tab5-demo`,
-`apps/worker-http`, `apps/unit-swap`) and installs them at boot, so Pocket Shell lists them
+`apps/worker-http`, `apps/unit-swap`, `apps/worker-mqtt`) and installs them at boot, so Pocket Shell lists them
 without a companion; applets from a paired Mac's catalog (pocket-shell's
 `bun run offer` with Pocket Companion running) install beside them. The home
 ball returns to Pocket Shell. `bun run app build <pocket.app.json>` compiles
@@ -96,7 +97,7 @@ way (into `.pocket-build/dist/`) with the ESP-IDF environment exported.
 - [Repository structure](docs/STRUCTURE.md)
 - [M5Stack Tab5 firmware](programs/m5stack-tab5/README.md): host contract,
   presentation, launcher services, home ball, keyboard
-- [Worker domain](docs/WORKER.md): worker runtime, HTTP node and validation
+- [Worker domain](docs/WORKER.md): worker runtime, HTTP and MQTT nodes and validation
 - [Engineering conventions](AGENTS.md): commits, formatting, dependencies
 
 ## Pinned dependencies
