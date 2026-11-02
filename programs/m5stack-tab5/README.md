@@ -70,8 +70,8 @@ point beside the station connection (APSTA), with an HTTP page at
 192.168.4.1.
 
 A UI realm has no network module. An app whose package carries a worker
-domain (`domains.worker`, package section 8) gets its own worker runtime
-(`pocket_worker_esp`) with four nodes:
+domain (`domains.worker`, package section 8, or section 9 as bytecode) gets
+its own worker runtime (`pocket_worker_esp`) with four nodes:
 
 | Node | Kind | Driver |
 | --- | --- | --- |
@@ -145,7 +145,7 @@ idf.py -p /dev/cu.usbmodem1201 build flash monitor
 Builds run the Pocket CLI through `tools/pocket` (`POCKETJS_CLI`) and, with
 `POCKETJS_RUST_FROM_SOURCE=ON` (the default here), need a Rust toolchain with
 the `riscv32imafc-unknown-none-elf` target. The image with Pocket Shell and
-the three bundled apps is 7.3 MiB of the 8 MiB `factory` partition (with
+the three bundled apps is 7.0 MiB of the 8 MiB `factory` partition (with
 Pocket Shell alone 4.1 MiB). `-DPOCKETJS_TAB5_BUNDLED_APPS=` builds without
 them. `partitions.csv` lays the 16 MiB flash out as `nvs`, `phy_init`, the
 8 MiB `factory` app, the 4 MiB `apps` data partition at 0x810000 (installed
@@ -155,6 +155,23 @@ this layout formats the moved partition, which only a cardless device used,
 and moves `package.pocket` files from the card into `apps`. An install
 programs flash for a few seconds, during which the launcher does not
 draw. The log reports the frame rate every five seconds.
+
+`pocket.host.json` names `esp-idf-quickjs-ng-0.14.0` under `bytecode.engine`,
+the QuickJS-NG build the `espressif/quickjs-ng` 0.14.0 component is, so the
+CLI compiles every app it builds for this contract into bytecode sections (6
+for the UI bundle, 9 for the worker bundle) and, as `bytecode.source` is
+`drop`, leaves the source sections out: with the source kept beside the
+bytecode the image is 8.15 MiB and does not fit `factory`. The compiler is
+built on the build host from the component's own `quickjs-ng` sources
+(`POCKETJS_QUICKJS_SOURCE`, set by the CMake helper to
+`managed_components/espressif__quickjs-ng/quickjs-ng`). The guest and the
+worker read those objects instead of parsing source, which drops the
+parser's peak and the function source text QuickJS otherwise keeps. A
+package from another contract that carries both runs its source when its
+bytecode names another engine (docs/PLATFORM.md in pocketjs, "Bytecode");
+a package built for this contract has no source to fall back to, so a
+bytecode that fails to load fails the app, and removing `bytecode` from the
+contract builds source-only packages again.
 
 The applets install from a paired Mac's catalog, and an app installs from an
 install QR code that Pocket Shell scans (`components/pocket_system`,

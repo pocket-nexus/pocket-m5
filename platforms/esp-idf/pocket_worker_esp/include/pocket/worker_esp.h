@@ -8,8 +8,15 @@ typedef struct {
   uint32_t struct_size, generation;
   const pocket_worker_node *nodes;
   size_t node_count;
+  /* The NUL-terminated bundle; NULL when the bundle is bytecode alone. */
   const char *source;
   size_t source_size;
+  /* Optional: the bundle as a package bytecode section (section 9) and the
+   * engine ABI of this QuickJS build (pocket_quickjs_abi.h). The runner
+   * evaluates it instead of source when its digest matches, else source. */
+  const uint8_t *bytecode;
+  size_t bytecode_size;
+  const uint8_t *engine_abi;
   uint32_t heap_limit, stack_limit, task_stack_size;
   /* Optional CPU share: at most quota_micros of JS per window_micros. Zero
    * quota disables it. Set it only when the worker task shares a core with
@@ -27,7 +34,7 @@ typedef struct {
   uint32_t heap_caps, task_stack_caps;
 } pocket_worker_esp_config;
 
-/* Source, node table and driver objects must outlive the runner. */
+/* Source, bytecode, node table and driver objects must outlive the runner. */
 esp_err_t pocket_worker_esp_start(const pocket_worker_esp_config *config,
                                   pocket_worker_esp **out);
 /* Stops JS dispatch, interrupting a turn in progress, joins all native users,

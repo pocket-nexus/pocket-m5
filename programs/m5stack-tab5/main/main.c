@@ -51,6 +51,7 @@
 #include "pocket/worker_esp.h"
 #include "pocket/worker_ui.h"
 #include "pocket_profile.h"
+#include "pocket_quickjs_abi.h"
 #include "pocket_spec.h"
 #include "pocketjs/esp32p4_ppa_lanes.h"
 #include "pocketjs/esp32p4_ppa_status.h"
@@ -691,7 +692,8 @@ static void stop_guest(tab5_host_t *host) {
 static int32_t boot_guest(
     tab5_host_t *host, const uint8_t *bytes, size_t size,
     int32_t (*bind)(JSContext *realm, pocket_runtime *runtime, void *context),
-    void *bind_context, const char *worker, size_t worker_size) {
+    void *bind_context, const char *worker, size_t worker_size,
+    const uint8_t *worker_bytecode, size_t worker_bytecode_size) {
   tab5_guest_t *running = &host->running;
   const pocket_profile_facts *facts = pocket_profile.facts;
   pocket_runtime_config config = {
@@ -768,10 +770,14 @@ static int32_t boot_guest(
    * its first turn after; the bridge mirrors the channels into the realm. */
   host->worker_failed = false;
   host->worker_logged = false;
-  if (status == POCKET_STATUS_OK && worker != NULL) {
+  if (status == POCKET_STATUS_OK &&
+      (worker != NULL || worker_bytecode != NULL)) {
     pocket_worker_esp_config config = host->worker_config;
     config.source = worker;
     config.source_size = worker_size;
+    config.bytecode = worker_bytecode;
+    config.bytecode_size = worker_bytecode_size;
+    config.engine_abi = POCKET_QUICKJS_ENGINE_ABI_ESP_IDF_QUICKJS_NG_0_14_0;
     config.generation = ++host->worker_generation;
     config.defer_turns = true;
     const esp_err_t started =
@@ -843,8 +849,14 @@ static int32_t boot_app(tab5_host_t *host, pocketjs_system_app_t *app) {
   size_t worker_size = 0;
   if (!pocketjs_system_app_worker(app, &worker, &worker_size))
     worker = NULL;
+  const uint8_t *worker_bytecode = NULL;
+  size_t worker_bytecode_size = 0;
+  if (!pocketjs_system_app_worker_bytecode(app, &worker_bytecode,
+                                           &worker_bytecode_size))
+    worker_bytecode = NULL;
   const int32_t status =
-      boot_guest(host, bytes, size, bind_system, app, worker, worker_size);
+      boot_guest(host, bytes, size, bind_system, app, worker, worker_size,
+                 worker_bytecode, worker_bytecode_size);
   if (status != POCKET_STATUS_OK) {
     stop_guest(host);
     pocketjs_system_unbind();

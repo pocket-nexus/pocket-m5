@@ -226,18 +226,20 @@ static uint64_t le64(const uint8_t *p) {
   return (uint64_t)le32(p) | (uint64_t)le32(p + 4) << 32;
 }
 
-/* Package section 8 of the admitted variant, the one whose hash (variant
- * offset 24, contracts/spec/pocket-package.ts) is facts->variant_hash: the
- * worker source, NUL-terminated. */
-static bool worker_section(const uint8_t *bytes, size_t size,
-                           const pocket_idf_package_facts *facts,
-                           const char **source, size_t *length) {
-  enum { HEADER = 32, VARIANT = 64, SECTION = 16, FOOTER = 8, WORKER = 8 };
+/* A section of the admitted variant, the one whose hash (variant offset 24,
+ * contracts/spec/pocket-package.ts) is facts->variant_hash: `kind` 8, the
+ * NUL-terminated worker source, or 9, its bytecode envelope. */
+static bool variant_section(const uint8_t *bytes, size_t size,
+                            const pocket_idf_package_facts *facts,
+                            uint32_t kind, const uint8_t **payload,
+                            size_t *length) {
+  enum { HEADER = 32, VARIANT = 64, SECTION = 16, FOOTER = 8 };
   if (size < HEADER + FOOTER)
     return false;
-  const uint64_t payload = size - FOOTER;
+  const uint64_t payload_end = size - FOOTER;
 #define WITHIN(offset, count)                                                  \
-  ((uint64_t)(offset) <= payload && (uint64_t)(count) <= payload - (offset))
+  ((uint64_t)(offset) <= payload_end &&                                        \
+   (uint64_t)(count) <= payload_end - (offset))
   const uint64_t table = HEADER + ((uint64_t)le32(bytes + 8) + 15) / 16 * 16;
   const uint32_t variants = le32(bytes + 12);
   if (variants > 64 || !WITHIN(table, (uint64_t)variants * VARIANT))
@@ -253,18 +255,32 @@ static bool worker_section(const uint8_t *bytes, size_t size,
     for (uint32_t s = 0; s < count; ++s) {
       const uint8_t *section = bytes + sections + (uint64_t)s * SECTION;
       const uint32_t start = le32(section + 8), span = le32(section + 12);
-      if (le32(section) != WORKER)
+      if (le32(section) != kind)
         continue;
-      if (span < 2 || !WITHIN(start, span) || bytes[start + span - 1] != 0)
+      if (span == 0 || !WITHIN(start, span))
         return false;
-      *source = (const char *)bytes + start;
-      *length = span - 1;
+      *payload = bytes + start;
+      *length = span;
       return true;
     }
     return false;
   }
 #undef WITHIN
   return false;
+}
+
+/* Section 8: the worker source, NUL-terminated, without its terminator. */
+static bool worker_section(const uint8_t *bytes, size_t size,
+                           const pocket_idf_package_facts *facts,
+                           const char **source, size_t *length) {
+  const uint8_t *payload = NULL;
+  size_t span = 0;
+  if (!variant_section(bytes, size, facts, 8, &payload, &span) || span < 2 ||
+      payload[span - 1] != 0)
+    return false;
+  *source = (const char *)payload;
+  *length = span - 1;
+  return true;
 }
 
 static LauncherPackage facts_of(const pocket_idf_package_facts *facts,
@@ -1039,6 +1055,13 @@ bool pocketjs_system_app_worker(const pocketjs_system_app_t *app,
                                 const char **source, size_t *size) {
   return app != NULL && source != NULL && size != NULL &&
          worker_section(app->bytes, app->size, &app->facts, source, size);
+}
+
+bool pocketjs_system_app_worker_bytecode(const pocketjs_system_app_t *app,
+                                         const uint8_t **envelope,
+                                         size_t *size) {
+  return app != NULL && envelope != NULL && size != NULL &&
+         variant_section(app->bytes, app->size, &app->facts, 9, envelope, size);
 }
 
 bool pocketjs_system_online(void) { return wifi_online(); }

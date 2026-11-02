@@ -41,5 +41,6 @@
   ],
   "worker": {
     "nodes": { "http": 1, "i2c": 2, "uart": 1 }
-  }
+  },
+  "bytecode": { "engine": "esp-idf-quickjs-ng-0.14.0", "source": "drop" }
 }
