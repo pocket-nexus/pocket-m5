@@ -62,7 +62,11 @@ tools/pocket-shell-icons.ts [--only hn,mac]` re-renders them: Blender
 `nexus.ts` draws the Pocket Nexus picture with `@napi-rs/canvas`, and
 `bake.ts` writes the 24, 46 and 64 px textures and a contact sheet in
 `.pocket-build/validation/pocket-shell-icons`. Cycles output differs a little between
-runs, so a re-render is a new set of pictures to review.
+runs, so a re-render is a new set of pictures to review. GitHub's
+`github-{24,46,64}.png` (and `@2x`) are not rendered here: they are
+pocket-shell's launcher textures (`shells/3ds/shell/art/icons`), GitHub's
+mark on the dark glass tile the applets repository draws
+(pocket-nexus/applets `tools/icons`).
 
 ## Tests
 
