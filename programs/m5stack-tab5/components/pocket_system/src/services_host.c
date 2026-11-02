@@ -516,9 +516,14 @@ bool link_host_install(const char *slot, const char *path, uint64_t hash,
         flash_store_install(slot, keep->bytes, size, out->hash, &stored);
     remove(path);
     ResidentPackage entry;
-    if (result == ESP_OK &&
-        admit_resident(stored, size, false, &entry, error, error_capacity) &&
-        resident_put(&entry)) {
+    bool admitted =
+        result == ESP_OK &&
+        admit_resident(stored, size, false, &entry, error, error_capacity);
+    if (admitted && !resident_put(&entry)) {
+      snprintf(error, error_capacity, "install: no room in the package table");
+      admitted = false;
+    }
+    if (admitted) {
       char stale[SLOT_PATH_BYTES];
       if (launcher_host_slot_path(slot, PACKAGE_NAME, stale, sizeof stale))
         remove(stale);
@@ -796,7 +801,12 @@ static void start_store(void *argument) {
       &launcher_package.facts, launcher_package.bytes, launcher_package.size);
   launcher_init(launcher_slot, &package);
   resident_capacity = config.bundled_count + FLASH_STORE_MAX_ENTRIES;
-  residents = calloc(resident_capacity, sizeof *residents);
+  /* Pointers into flash and cached facts, read on the app task: PSRAM
+   * serves them and spares the internal heap the strips compete for. */
+  residents = heap_caps_calloc(resident_capacity, sizeof *residents,
+                               MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (residents == NULL)
+    residents = calloc(resident_capacity, sizeof *residents);
   if (residents == NULL) {
     ESP_LOGE(TAG, "packages: out of memory");
     resident_capacity = 0;
