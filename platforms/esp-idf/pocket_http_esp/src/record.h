@@ -55,6 +55,11 @@ typedef struct {
 bool pocket_http_esp_url_parse(const char *url, pocket_http_esp_url *out);
 bool pocket_http_esp_same_origin(const pocket_http_esp_url *a,
                                  const pocket_http_esp_url *b);
+/* The host whose requests the companion answers (contracts/spec/link.ts
+ * LINK_SERVICES_HOST). True when `url` parses and names it, under either
+ * scheme and on any port, as the companion matches it. */
+#define POCKET_HTTP_ESP_COMPANION_HOST "companion.pocket"
+bool pocket_http_esp_companion_url(const char *url);
 /* `location` against `base` as an absolute URL in `out`. Dot segments stay
  * for the server. False when the result does not fit. */
 bool pocket_http_esp_resolve(const char *base, const char *location, char *out,
