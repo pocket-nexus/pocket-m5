@@ -18,3 +18,6 @@ ${CC:-cc} -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
   -o "$validation_dir/install-uri"
 "$validation_dir/install-uri"
 bun test ./tests/sensors.test.ts ./tests/rtc-setting.test.ts ./tests/pocket-shell-clock.test.ts ./tests/unit-swap.test.ts
+# The companion.pocket route on the Pocket Link client, against pocketjs's
+# companion (it builds its own native harness).
+bun test ./tests/companion-route.test.ts

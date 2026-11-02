@@ -29,6 +29,7 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 
+#include "companion.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_random.h"
@@ -1077,3 +1078,64 @@ bool pocketjs_system_app_worker_bytecode(const pocketjs_system_app_t *app,
 bool pocketjs_system_online(void) { return wifi_online(); }
 
 bool pocketjs_system_clock_wait(uint32_t ms) { return clock_wait(ms); }
+
+// ---------------------------------------------------------------------------
+// the worker's requests to companion.pocket (companion.c), on the system
+// task, which owns the link
+// ---------------------------------------------------------------------------
+
+typedef struct {
+  const uint8_t *descriptor;
+  size_t length;
+  char *error;
+  size_t capacity;
+  uint32_t id;
+  pocket_http_esp_fact *fact;
+  bool taken;
+} CompanionCall;
+
+static void companion_start_job(void *argument) {
+  CompanionCall *call = argument;
+  call->id = companion_start(call->descriptor, call->length, call->error,
+                             call->capacity);
+}
+
+static void companion_take_job(void *argument) {
+  CompanionCall *call = argument;
+  call->taken = companion_take(call->id, call->fact);
+}
+
+static void companion_close_job(void *argument) {
+  companion_close(((CompanionCall *)argument)->id);
+}
+
+static uint32_t route_start(void *context, const uint8_t *descriptor,
+                            size_t length, char *error, size_t capacity) {
+  (void)context;
+  CompanionCall call = {.descriptor = descriptor,
+                        .length = length,
+                        .error = error,
+                        .capacity = capacity};
+  system_run(companion_start_job, &call);
+  return call.id;
+}
+
+static bool route_take(void *context, uint32_t id, pocket_http_esp_fact *fact) {
+  (void)context;
+  CompanionCall call = {.id = id, .fact = fact};
+  system_run(companion_take_job, &call);
+  return call.taken;
+}
+
+static void route_close(void *context, uint32_t id) {
+  (void)context;
+  CompanionCall call = {.id = id};
+  system_run(companion_close_job, &call);
+}
+
+static const pocket_http_esp_companion companion_route = {
+    .start = route_start, .take = route_take, .close = route_close};
+
+const pocket_http_esp_companion *pocketjs_system_companion(void) {
+  return &companion_route;
+}

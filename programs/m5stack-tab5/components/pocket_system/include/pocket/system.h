@@ -145,6 +145,13 @@ bool pocketjs_system_online(void);
  * it has been set. */
 bool pocketjs_system_clock_wait(uint32_t ms);
 
+/** The pocket_http_esp transport of the worker's requests to
+ * companion.pocket: the paired companion answers them over the Pocket Link
+ * (README, "Companion services"). Its callbacks are callable from any
+ * task. */
+struct pocket_http_esp_companion;
+const struct pocket_http_esp_companion *pocketjs_system_companion(void);
+
 #ifdef __cplusplus
 }
 #endif

@@ -133,6 +133,32 @@ one whose app id does not hash to the slot of `a`, as it does for a package
 read from any slot. A guest switch keeps the download running and drops only
 its events.
 
+## Companion services
+
+A worker reaches the paired companion's services at
+`https://companion.pocket/<service>/...` (pocketjs `docs/APPLETS.md`;
+`LINK_SERVICES_HOST` in `contracts/spec/link.ts`) through its `http` node.
+`pocketjs_system_companion` is the `pocket_http_esp` transport for that host:
+`companion.c` sends the request over the Pocket Link as a `net.stream` request
+with engine/host-services `link_http.c`, which the link client carries when
+built with `POCKETJS_WORKER_HTTP`. The request names the running app, and the
+companion answers it for the services that app declares. The request task
+makes each call on the system task (`system_run`), where the link runs.
+Every other host goes out over the radio as before.
+
+| When | The request fails with |
+| --- | --- |
+| no companion is paired | `unavailable: no Mac is paired` |
+| the paired companion is not linked | `unavailable: the paired Mac is not connected` |
+| the companion offers no `net.stream` | `unavailable: the paired Mac offers no companion services` |
+| the link closes during the request | `unavailable: the Pocket Link closed`, status `unknown` |
+
+The link client holds two requests (`LINK_HTTP_SLOTS`), each with a 1 KiB
+headers record and an 8 KiB receive window: 18,608 bytes of internal RAM in
+`.bss` (`idf.py size-files`). `tests/companion-route.test.ts` builds
+`companion.c` with the link client and runs it against pocketjs's companion
+in the test process.
+
 ## Clock and worker support
 
 `clock.c` starts the SNTP client (`esp_netif_sntp`,
