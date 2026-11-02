@@ -3,11 +3,13 @@
  * lifecycle of pocket/system.h.
  *
  * A slot holds one committed package, `package.pocket`; its hash is the
- * file's footer. An install streams into `link-upload.pocket`, is admitted
- * (footer, FNV-1a64, a variant for the firmware's profile) and replaces
- * `package.pocket`. FAT refuses a rename onto an existing name, so the old
- * package is removed first: an interrupted install loses the app, never
- * leaves a package the firmware would refuse.
+ * file's footer. An install streams into `link-upload.pocket` from the
+ * companion, or into `url-upload.pocket` from an address (install.c), is
+ * admitted (footer, FNV-1a64, a variant the firmware's host facts satisfy, an
+ * app id that hashes to the slot) and replaces `package.pocket`. FAT refuses
+ * a rename onto an existing name, so the old package is removed first: an
+ * interrupted install loses the app, never leaves a package the firmware
+ * would refuse.
  *
  * Storage on the flash partition and the radio's NVS are flash, and a flash
  * access disables the cache, which a task with its stack in PSRAM cannot
@@ -248,8 +250,11 @@ typedef struct {
   uint8_t *bytes;
 } HeldPackage;
 
-static bool load_path(const char *path, uint64_t expected, LauncherPackage *out,
-                      void **held, char *error, size_t capacity) {
+/* Read and admit the package at `path` by the firmware's host facts; its
+ * footer must be `expected` (0: any) and its app id must hash to `slot`. */
+static bool load_path(const char *path, const char *slot, uint64_t expected,
+                      LauncherPackage *out, void **held, char *error,
+                      size_t capacity) {
   size_t size = 0;
   uint8_t *bytes = read_file(path, &size);
   if (bytes == NULL) {
@@ -266,6 +271,12 @@ static bool load_path(const char *path, uint64_t expected, LauncherPackage *out,
   if (keep == NULL || !open_package(bytes, size, &facts, error, capacity)) {
     if (keep == NULL)
       snprintf(error, capacity, "out of memory");
+    free(keep);
+    heap_caps_free(bytes);
+    return false;
+  }
+  if (strcmp(facts.slot, slot) != 0) {
+    snprintf(error, capacity, "the package belongs to another app");
     free(keep);
     heap_caps_free(bytes);
     return false;
@@ -334,7 +345,7 @@ bool launcher_host_load(const char *slot, uint64_t hash, LauncherPackage *out,
   char error[160];
   if (!launcher_host_slot_path(slot, PACKAGE_NAME, path, sizeof path))
     return false;
-  if (load_path(path, hash, out, held, error, sizeof error))
+  if (load_path(path, slot, hash, out, held, error, sizeof error))
     return true;
   ESP_LOGW(TAG, "slot %s: %s", slot, error);
   return false;
@@ -382,7 +393,7 @@ bool link_host_staging_path(const char *slot, char *out, size_t capacity) {
 bool link_host_install(const char *slot, const char *path, uint64_t hash,
                        LauncherPackage *out, void **held, char *error,
                        size_t error_capacity) {
-  if (!load_path(path, hash, out, held, error, error_capacity)) {
+  if (!load_path(path, slot, hash, out, held, error, error_capacity)) {
     remove(path);
     return false;
   }
@@ -678,12 +689,13 @@ esp_err_t pocketjs_system_bind(JSContext *realm,
   if (!started || realm == NULL || app == NULL)
     return ESP_ERR_INVALID_ARG;
   system_run(bind_app, (void *)app);
-  return system_qjs_install(realm);
+  return system_qjs_install(realm, app->launcher);
 }
 
 static void unbind(void *unused) {
   (void)unused;
   link_reset_guest();
+  install_reset_guest();
   fs_unbind();
 }
 
@@ -722,6 +734,7 @@ bool pocketjs_system_launch(const char *output) {
 static void pump(void *unused) {
   (void)unused;
   link_pump();
+  install_pump();
 }
 
 void pocketjs_system_pump(void) { system_run(pump, NULL); }

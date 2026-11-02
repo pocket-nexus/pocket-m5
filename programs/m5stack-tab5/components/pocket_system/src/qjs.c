@@ -7,6 +7,10 @@
  *                      point ops
  *   globalThis.fs      contracts/spec/fs.ts, when the guest's plan declares
  *                      data.fs (fs.c)
+ *   globalThis.installer
+ *                      installUri(uri) -> id | -1 and poll() -> JSON array
+ *                      | undefined, the launcher only (install.c; README,
+ *                      "Installs from a code")
  *
  * The launcher operations (appTable, appLaunch, appShot) are ui operations
  * the program registers as a runtime operation provider. Each function here
@@ -30,6 +34,8 @@ enum {
   OP_LINK_INSTALL,
   OP_LINK_REMOVE,
   OP_LINK_POLL,
+  OP_INSTALLER_INSTALL_URI,
+  OP_INSTALLER_POLL,
   OP_WIFI_STATUS,
   OP_WIFI_SET_ENABLED,
   OP_WIFI_CONNECT,
@@ -149,6 +155,13 @@ static void perform(void *argument) {
     r->kind = RESULT_TEXT_OR_UNDEFINED;
     r->out_text = link_poll();
     break;
+  case OP_INSTALLER_INSTALL_URI:
+    int_result(r, r->text == NULL ? -1 : install_uri(r->text, r->length));
+    break;
+  case OP_INSTALLER_POLL:
+    r->kind = RESULT_TEXT_OR_UNDEFINED;
+    r->out_text = install_poll();
+    break;
   case OP_WIFI_STATUS:
     text_result(r, wifi_status_json());
     break;
@@ -219,6 +232,7 @@ static JSValue operation(JSContext *ctx, JSValueConst this_value, int argc,
   case OP_LINK_FORGET:
   case OP_LINK_REMOVE:
   case OP_LINK_INSTALL:
+  case OP_INSTALLER_INSTALL_URI:
   case OP_FS_STAT:
   case OP_FS_MKDIR:
   case OP_WIFI_START_ACCESS_POINT:
@@ -279,7 +293,7 @@ static void add(JSContext *ctx, JSValue object, const char *name, int arity,
                                          JS_CFUNC_generic_magic, magic));
 }
 
-esp_err_t system_qjs_install(JSContext *ctx) {
+esp_err_t system_qjs_install(JSContext *ctx, bool launcher) {
   JSValue global = JS_GetGlobalObject(ctx);
 
   JSValue link = JS_NewObject(ctx);
@@ -291,6 +305,13 @@ esp_err_t system_qjs_install(JSContext *ctx) {
   add(ctx, link, "remove", 1, OP_LINK_REMOVE);
   add(ctx, link, "poll", 0, OP_LINK_POLL);
   JS_SetPropertyStr(ctx, global, "link", link);
+
+  if (launcher) {
+    JSValue installer = JS_NewObject(ctx);
+    add(ctx, installer, "installUri", 1, OP_INSTALLER_INSTALL_URI);
+    add(ctx, installer, "poll", 0, OP_INSTALLER_POLL);
+    JS_SetPropertyStr(ctx, global, "installer", installer);
+  }
 
   JSValue wifi = JS_NewObject(ctx);
   add(ctx, wifi, "status", 0, OP_WIFI_STATUS);

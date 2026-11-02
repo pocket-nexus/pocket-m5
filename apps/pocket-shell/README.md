@@ -25,7 +25,7 @@ longer pins pocket-shell; changes to the launcher land here.
 | --- | --- |
 | `main.tsx`, `app.tsx` | entry and root component: the springboard, the page stack, launch failures |
 | `springboard.tsx`, `layout.ts` | the Home screen: icon pages, page dots and the dock; the order is kept in `layout.json` in Pocket Shell's `data.fs` root |
-| `pages.tsx`, `scanner.tsx`, `store.tsx` | Settings: Wi-Fi, Pair a Mac (QR code from the camera), the Mac's catalog and installs |
+| `pages.tsx`, `scanner.tsx`, `store.tsx` | Settings: Wi-Fi, Pair a Mac (QR code from the camera), the Mac's catalog and installs, an install code's page |
 | `system.ts` | the launcher's app table, the Pocket Link and Wi-Fi state, polled every 30 frames (6 while a connection or pairing changes) |
 | `clock.ts`, `display.ts` | wall-clock fields from `Date.now()` with a fixed UTC offset; the display mode for Settings |
 | `ui/` | the iOS 6 kit: navigation stack and bar, grouped tables, alerts, text fitting, the touch router |
@@ -42,6 +42,16 @@ longer pins pocket-shell; changes to the launcher land here.
 - Settings > Wi-Fi scans, joins with a password typed on the on-screen or the
   Tab5 keyboard, and forgets saved networks (`wifiCanJoin()` is true on the
   Tab5).
+- Installs from a code: the firmware binds `globalThis.installer` into the
+  launcher, and where it is present the Mac store shows Scan a Code... The
+  scanner reads an install URI
+  (`programs/m5stack-tab5/components/pocket_system/README.md`, "Installs from
+  a code"), closes the camera and shows the app's title and the server's host
+  with Install and Cancel; the download's progress, then Open or the
+  firmware's error, follow on that page. `system.ts` parses the URI, starts
+  the download and polls the installer every frame while it runs. Either
+  scanner entry takes either code: a pairing code pairs. A host without the
+  installer shows no row.
 
 ## Icons
 
