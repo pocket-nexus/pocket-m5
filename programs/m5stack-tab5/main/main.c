@@ -190,6 +190,12 @@ typedef struct {
   uint8_t ball_mode;
   uint32_t contacts[TAB5_MAX_CONTACTS];
   uint32_t contact_count;
+  /* The panel's points last sample and the ids given them, for a controller
+   * whose driver reports no track ids. */
+  uint16_t tracked_x[TAB5_MAX_CONTACTS];
+  uint16_t tracked_y[TAB5_MAX_CONTACTS];
+  uint8_t tracked_id[TAB5_MAX_CONTACTS];
+  uint8_t tracked_count;
   tab5_guest_t running;
   /* The task that switches guests, woken by the runner. */
   TaskHandle_t app_task;
@@ -336,6 +342,63 @@ static void ball_gesture(tab5_host_t *host, float dx, float dy) {
   ESP_LOGI(TAG, "ball gesture: %s", direction);
 }
 
+/* The ST7123's driver has no get_track_id, so esp_lcd_touch_get_data leaves
+ * every point's track_id 0, and the runtime fails a frame whose contacts share
+ * an id. Each point takes the id of the nearest point of the last sample, the
+ * closest pairs first; a point with none near takes the lowest free id. */
+#define TAB5_TRACK_REACH_PX 400
+static void track_points(tab5_host_t *host, esp_lcd_touch_point_data_t *points,
+                         uint8_t count) {
+  bool point_done[TAB5_MAX_CONTACTS] = {false};
+  bool track_used[TAB5_MAX_CONTACTS] = {false};
+  uint8_t ids[TAB5_MAX_CONTACTS] = {0};
+  for (uint8_t pass = 0; pass < count; pass++) {
+    int64_t best = (int64_t)TAB5_TRACK_REACH_PX * TAB5_TRACK_REACH_PX + 1;
+    int point = -1;
+    int track = -1;
+    for (uint8_t i = 0; i < count; i++) {
+      for (uint8_t t = 0; !point_done[i] && t < host->tracked_count; t++) {
+        if (track_used[t])
+          continue;
+        const int64_t dx = (int64_t)points[i].x - host->tracked_x[t];
+        const int64_t dy = (int64_t)points[i].y - host->tracked_y[t];
+        const int64_t distance = dx * dx + dy * dy;
+        if (distance < best) {
+          best = distance;
+          point = i;
+          track = t;
+        }
+      }
+    }
+    if (point < 0)
+      break;
+    point_done[point] = true;
+    track_used[track] = true;
+    ids[point] = host->tracked_id[track];
+  }
+  for (uint8_t i = 0; i < count; i++) {
+    if (point_done[i])
+      continue;
+    for (uint8_t id = 0; id < TAB5_MAX_CONTACTS; id++) {
+      bool taken = false;
+      for (uint8_t other = 0; other < count; other++)
+        taken = taken || (point_done[other] && ids[other] == id);
+      if (!taken) {
+        ids[i] = id;
+        point_done[i] = true;
+        break;
+      }
+    }
+  }
+  for (uint8_t i = 0; i < count; i++) {
+    points[i].track_id = ids[i];
+    host->tracked_x[i] = points[i].x;
+    host->tracked_y[i] = points[i].y;
+    host->tracked_id[i] = ids[i];
+  }
+  host->tracked_count = count;
+}
+
 /* Contacts on the picture in logical pixels; a contact that lands on the
  * ball is the ball's until it lifts, never the picture's: a tap sends
  * SELECT on release, a finger that moves at once drags the ball, one that
@@ -367,6 +430,8 @@ static int32_t input_poll(void *context, pocket_input_frame_builder *builder) {
           .id = host->contacts[i]};
     count = 0;
   }
+  if (host->touch->get_track_id == NULL)
+    track_points(host, points, count);
   for (uint8_t i = 0; i < count; i++) {
     const int32_t sx =
         host->turned ? (int32_t)BSP_LCD_V_RES - 1 - points[i].y : points[i].x;
