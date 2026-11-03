@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// apps/pocket-shell/app.tsx — Pocket Shell, the 3DS system launcher.
+// apps/pocket-shell/app.tsx — Pocket Shell, the Tab5's launcher.
 //
 // The touch screen holds the Home screen; Settings and the Mac store open
 // over it with a zoom, each as a navigation stack. The top screen belongs to
