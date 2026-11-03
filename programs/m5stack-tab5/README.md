@@ -149,8 +149,8 @@ idf.py -p /dev/cu.usbmodem1201 build flash monitor
 Builds run the Pocket CLI through `tools/pocket` (`POCKETJS_CLI`) and, with
 `POCKETJS_RUST_FROM_SOURCE=ON` (the default here), need a Rust toolchain with
 the `riscv32imafc-unknown-none-elf` target. The image with Pocket Shell and
-the three bundled apps is 7.0 MiB of the 8 MiB `factory` partition (with
-Pocket Shell alone 4.1 MiB). `-DPOCKETJS_TAB5_BUNDLED_APPS=` builds without
+the four bundled apps is 7.5 MiB of the 8 MiB `factory` partition.
+`-DPOCKETJS_TAB5_BUNDLED_APPS=` builds without
 them. `partitions.csv` lays the 16 MiB flash out as `nvs`, `phy_init`, the
 8 MiB `factory` app, the 4 MiB `apps` data partition at 0x810000 (installed
 packages, 64 KiB pages) and the 3.9 MiB `storage` FAT at 0xC10000. Firmware
@@ -186,12 +186,13 @@ beyond that, a frame releases the least recently drawn ones the previous
 frame did not draw, and decodes them from flash again when a frame draws
 them.
 
-The applets install from a paired Mac's catalog, and an app installs from an
-install QR code that Pocket Shell scans (`components/pocket_system`,
-"Installs from a code"). An applet compiled with
+The applets install from a paired Mac's catalog (Pocket Companion carries
+them), and an app installs from an install QR code that Pocket Shell scans
+(`components/pocket_system`, "Installs from a code"). An applet compiled with
 `--host-config programs/m5stack-tab5/pocket.host.config.ts` by a pocketjs at
-or after pocket-nexus/pocketjs#631 installs here; pocket-shell's `bun run
-tab5` reads the former `home.runtime-config.ts` and predates #631. A UI realm
+or after pocket-nexus/pocketjs#631 installs here. pocket-shell's `bun run
+tab5` and pocket-nexus/applets' `bun tools/build.ts tab5` compile against
+this host config and check each package with PocketJS's admission. A UI realm
 has no network module: an app reaches the network through its worker's
 `io.http`, and one that imports `@pocketjs/framework/net`, removed from
 pocketjs, does not compile.

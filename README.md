@@ -15,8 +15,9 @@ Pocket Link; a floating home ball; Wi-Fi with an optional access point,
 SNTP clock, worker HTTP, MQTT, I2C and RS485 nodes, camera, media, PCM audio and
 microphones, board controls and keyboard. Pocket Shell is
 [`apps/pocket-shell`](apps/pocket-shell/README.md), taken from
-[pocket-shell](https://github.com/pocket-nexus/pocket-shell) at `188c46c`;
-the applets (Hacker News, YouTube, Notes and the others) stay in pocket-shell.
+[pocket-shell](https://github.com/pocket-nexus/pocket-shell) at `188c46c`
+and changed here since; the applets (Hacker News, YouTube, Notes and the
+others) live in [pocket-nexus/applets](https://github.com/pocket-nexus/applets).
 App workers get an `http` node (`pocket_http_esp`), an `mqtt` node
 (`pocket_mqtt_esp`, MQTT 3.1.1 and 5.0) and `i2c` and `uart` nodes
 (`pocket_io_esp`); see [Worker domain](docs/WORKER.md).
@@ -51,11 +52,12 @@ idf.py -p <port> flash monitor
 
 The firmware embeds this repository's apps (`apps/tab5-demo`,
 `apps/worker-http`, `apps/unit-swap`, `apps/worker-mqtt`) and installs them at boot, so Pocket Shell lists them
-without a companion; applets from a paired Mac's catalog (pocket-shell's
-`bun run offer` with Pocket Companion running) install beside them. The home
-ball returns to Pocket Shell. `bun run app build <pocket.app.json>` compiles
-an app of this repository with the firmware's host config into
-`.pocket-build/apps/`.
+without a companion. The applets install beside them from a paired Mac:
+[Pocket Companion](https://studio.pocket.nexus/apps/companion) carries them.
+Pair in Settings > Mac > Pair a Mac..., then the Mac icon on the home screen
+lists them. The home ball returns to Pocket Shell.
+`bun run app build <pocket.app.json>` compiles an app of this repository
+with the firmware's host config into `.pocket-build/apps/`.
 
 ## Firmware releases
 
@@ -85,6 +87,10 @@ A release holds:
 | `pocket-m5-tab5-<version>.bin` | bootloader, partition table and app merged from 0x0; `write-flash 0x0` installs it and erases `nvs` (saved Wi-Fi networks) |
 | `pocket-m5-tab5-<version>.zip` | the three images and `flash_args`; `write-flash @flash_args` updates and keeps `nvs` |
 | `SHA256SUMS` | SHA-256 of both |
+
+Pocket Studio offers the latest release at
+<https://studio.pocket.nexus/apps/shell>, with the install steps at
+<https://studio.pocket.nexus/docs/install/#tab5>.
 
 The release notes (`RELEASE.md` from `tools/firmware-dist.ts`) give the
 pocketjs and ESP-IDF versions and the `esptool` commands. Neither image
