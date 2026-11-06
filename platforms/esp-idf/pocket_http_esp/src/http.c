@@ -483,13 +483,22 @@ static void request_task(void *opaque) {
     if (quit)
       break;
     const int32_t status = perform(s);
-    /* After a cancel or close the request is terminal already; finish still
-     * ends the stream and releases the native request. */
-    pocket_worker_finish(s->worker, s->handle, s->request, status,
-                         s->delivered);
+    /* The slot is done before the worker learns it: a worker closes its
+     * resource as soon as the completion arrives, and a close that still
+     * found SLOT_RUNNING was refused and left the slot taken until the core
+     * retried it, which can be one long request later. The fields finish
+     * needs are read first; a slot freed and opened again meanwhile waits
+     * for this task's next turn. */
+    pocket_worker *worker = s->worker;
+    const uint32_t handle = s->handle;
+    const uint32_t request = s->request;
+    const uint64_t delivered = s->delivered;
     lock(d);
     s->phase = SLOT_DONE;
     unlock(d);
+    /* After a cancel or close the request is terminal already; finish still
+     * ends the stream and releases the native request. */
+    pocket_worker_finish(worker, handle, request, status, delivered);
   }
   xSemaphoreGive(d->stopped);
   if (d->config.task_stack_caps)
