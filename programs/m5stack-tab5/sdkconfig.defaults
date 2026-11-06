@@ -61,3 +61,6 @@ CONFIG_ESP_VIDEO_ENABLE_ISP_PIPELINE_CONTROLLER=y
 # write at a time (pocket_system README, "The link over USB-C").
 CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
 CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
+# usb_link.c carries the link through 127.0.0.1: an install streams 32 KiB
+# frames through it, more than the default 8 queued loopback packets.
+CONFIG_LWIP_LOOPBACK_MAX_PBUFS=0

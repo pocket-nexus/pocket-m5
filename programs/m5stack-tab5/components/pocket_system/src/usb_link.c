@@ -169,13 +169,26 @@ static void packet(uint8_t type, const uint8_t *payload, size_t length) {
       break;
     int fd = atomic_load(&client_fd);
     size_t at = 1;
-    while (fd >= 0 && at < length) {
-      ssize_t n = send(fd, payload + at, length - at, 0);
-      if (n <= 0) {
-        close_client(true);
-        break;
+    /* A full loopback queue (ENOMEM) or send buffer is backpressure, not a
+     * failure: wait for the link client to read, and the cable waits too. */
+    int waited_ms = 0;
+    while (fd >= 0 && at < length && atomic_load(&client_fd) == fd) {
+      ssize_t n = send(fd, payload + at, length - at, MSG_DONTWAIT);
+      if (n > 0) {
+        at += (size_t)n;
+        waited_ms = 0;
+        continue;
       }
-      at += (size_t)n;
+      if (n < 0 &&
+          (errno == ENOMEM || errno == EAGAIN || errno == EWOULDBLOCK) &&
+          waited_ms < 10000) {
+        vTaskDelay(pdMS_TO_TICKS(2));
+        waited_ms += 2;
+        continue;
+      }
+      ESP_LOGW(TAG, "loopback send: errno %d", errno);
+      close_client(true);
+      break;
     }
     break;
   }
