@@ -190,11 +190,20 @@ packet as log text.
 | --- | --- | --- |
 | `01` HELLO | console to companion, every 1 s | `link.status()` JSON |
 | `02` ATTACH | companion to console, every 1 s | none: a companion is on the cable (3 s without a packet: gone) |
-| `10` OPEN | console to companion | connection id: the link client connected to 127.0.0.1:8628 |
+| `10` OPEN | console to companion | connection id, u32 window: the link client connected to 127.0.0.1:8628 |
 | `11` DATA | both | connection id, then the connection's bytes |
 | `12` CLOSE | both | connection id |
+| `13` CREDIT | console to companion | connection id, u32: DATA bytes delivered to the link client, which the companion may send again |
 | `20` PAIR | companion to console | a `pocketlink://pair` URI, run as if scanned (`link.pair`, on the system task) |
 | `21` BEACON | companion to console | a 64-byte Pocket Link beacon, sent to the link client's beacon socket from 127.0.0.1 |
+
+DATA toward the console is flow controlled. The driver's receive interrupt
+drops bytes that do not fit its 16 KiB RX ring (`usb_serial_jtag.c` ignores a
+failed `xRingbufferSendFromISR`), and USB gives the companion no
+backpressure, so the companion keeps at most the OPEN window (8 KiB) of DATA
+unacknowledged, and the console returns CREDIT in steps of 2 KiB as it hands
+the bytes to the loopback socket. A full loopback queue or socket buffer
+makes that hand-off wait, not fail. A 446 KiB install takes 4.3 s.
 
 A companion that finds itself missing from HELLO's `paired` list sends PAIR
 with host 127.0.0.1 and port 8628: the cable is the trust boundary, as it is

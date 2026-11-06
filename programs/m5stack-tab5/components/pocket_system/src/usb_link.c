@@ -20,10 +20,14 @@
  * UTF-8 text, so a reader takes every byte outside a valid packet as log.
  *
  *   console -> companion  HELLO  link.status() JSON, once a second
- *                         OPEN   conn u8: the link client connected
+ *                         OPEN   conn u8, u32 window: the link client
+ *                                connected; the companion keeps at most
+ *                                `window` DATA bytes unacknowledged
  *                         DATA   conn u8, bytes
  *                         CLOSE  conn u8
- *   companion -> console  ATTACH (empty) once a second: a companion is here
+ *                         CREDIT conn u8, u32: DATA bytes delivered to the
+ *                                link client, which the companion may send
+ * again companion -> console  ATTACH (empty) once a second: a companion is here
  *                         DATA, CLOSE as above
  *                         PAIR   a pocketlink://pair URI, as if scanned
  *                         BEACON a 64-byte Pocket Link beacon
@@ -51,6 +55,10 @@
 #define USB_ATTACH_TIMEOUT_US (3 * 1000 * 1000)
 #define USB_RX_BUFFER 16384
 #define USB_TX_BUFFER 16384
+/* DATA bytes the companion may have in flight toward the console: the
+ * driver drops what does not fit its RX ring, so the window stays below it. */
+#define USB_DATA_WINDOW 8192
+#define USB_CREDIT_STEP 2048
 
 enum {
   PKT_HELLO = 0x01,
@@ -58,6 +66,7 @@ enum {
   PKT_OPEN = 0x10,
   PKT_DATA = 0x11,
   PKT_CLOSE = 0x12,
+  PKT_CREDIT = 0x13,
   PKT_PAIR = 0x20,
   PKT_BEACON = 0x21,
 };
@@ -67,6 +76,8 @@ static SemaphoreHandle_t tx_lock;
 static _Atomic int64_t attached_at;
 static _Atomic int client_fd = -1;
 static _Atomic uint8_t conn_id;
+static size_t credit_owed;
+static uint8_t credit_conn;
 static uint8_t tx_packet[USB_MAX_PAYLOAD + 7];
 
 static uint16_t crc16(const uint8_t *bytes, size_t length, uint16_t crc) {
@@ -190,6 +201,19 @@ static void packet(uint8_t type, const uint8_t *payload, size_t length) {
       close_client(true);
       break;
     }
+    /* the bytes left the RX ring: the companion may send that many more */
+    if (credit_conn != payload[0]) {
+      credit_conn = payload[0];
+      credit_owed = 0;
+    }
+    credit_owed += length - 1;
+    if (credit_owed >= USB_CREDIT_STEP) {
+      uint8_t grant[4] = {(uint8_t)credit_owed, (uint8_t)(credit_owed >> 8),
+                          (uint8_t)(credit_owed >> 16),
+                          (uint8_t)(credit_owed >> 24)};
+      send_packet(PKT_CREDIT, payload[0], true, grant, sizeof grant);
+      credit_owed = 0;
+    }
     break;
   }
   case PKT_CLOSE:
@@ -301,7 +325,10 @@ static void relay_task(void *unused) {
     uint8_t id = (uint8_t)(atomic_load(&conn_id) + 1);
     atomic_store(&conn_id, id);
     atomic_store(&client_fd, fd);
-    send_packet(PKT_OPEN, id, true, NULL, 0);
+    /* OPEN carries the DATA window the companion starts with */
+    const uint8_t window[4] = {(uint8_t)USB_DATA_WINDOW,
+                               (uint8_t)(USB_DATA_WINDOW >> 8), 0, 0};
+    send_packet(PKT_OPEN, id, true, window, sizeof window);
     for (;;) {
       ssize_t n = recv(fd, buffer, sizeof buffer, 0);
       if (n <= 0 || atomic_load(&client_fd) != fd)
