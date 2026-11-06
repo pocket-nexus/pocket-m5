@@ -734,9 +734,18 @@ static void stop_guest(tab5_host_t *host) {
    * the package bytes holding the worker source go. */
   if (running->worker_ui)
     pocket_worker_ui_detach(running->worker_ui);
-  if (running->worker)
-    while (pocket_worker_esp_stop(running->worker, 1000) == ESP_ERR_TIMEOUT)
-      ESP_LOGW(TAG, "waiting for the worker's native IO to stop");
+  /* A worker request that rides the Pocket Link (a companion.pocket service)
+   * ends only when the link is pumped, which the stopped runner no longer
+   * does: pump the system services while the worker's native IO winds down. */
+  if (running->worker) {
+    uint32_t waited_ms = 0;
+    while (pocket_worker_esp_stop(running->worker, 50) == ESP_ERR_TIMEOUT) {
+      pocketjs_system_pump();
+      waited_ms += 50;
+      if (waited_ms % 1000 == 0)
+        ESP_LOGW(TAG, "waiting for the worker's native IO to stop");
+    }
+  }
   /* Camera and media textures belong to the runtime, which goes before its
    * guest, renderers and displays. */
   if (running->runtime) {
