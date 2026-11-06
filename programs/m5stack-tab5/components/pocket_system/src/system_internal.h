@@ -25,6 +25,11 @@ bool wifi_stop_access_point(void);
 bool wifi_online(void);
 void wifi_address(char *out, size_t capacity);
 
+/* usb_link.c: the Pocket Link over the USB-C cable. usb_link_attached holds
+ * while a companion answers on the cable. */
+void usb_link_start(void);
+bool usb_link_attached(void);
+
 /* clock.c: the wall clock from SNTP, started with the radio. clock_wait
  * returns true once the clock has been set, false after `ms` without. */
 void clock_start(void);

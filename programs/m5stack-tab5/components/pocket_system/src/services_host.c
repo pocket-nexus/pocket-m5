@@ -473,7 +473,8 @@ void link_host_identity(char *name, size_t name_capacity, char *model,
 
 const char *link_host_directory(void) { return link_dir; }
 
-bool link_host_net_ready(void) { return wifi_online(); }
+/* The LAN, or a companion on the USB-C cable (usb_link.c). */
+bool link_host_net_ready(void) { return wifi_online() || usb_link_attached(); }
 
 void link_host_address(char *out, size_t capacity) {
   wifi_address(out, capacity);
@@ -847,6 +848,7 @@ esp_err_t pocketjs_system_start(const pocketjs_system_config_t *settings) {
     return result;
   if (settings->wifi)
     wifi_start(settings->wifi_prepare);
+  usb_link_start();
   started = true;
   return ESP_OK;
 }
