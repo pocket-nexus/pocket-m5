@@ -34,7 +34,7 @@ pocket-m5/
 │                               Unit Swap's conversions and records
 ├─ tools/                       pocket CLI wrapper, app packaging, formatter, host tests,
 │                               tab5-demo artwork conversion, firmware packaging
-│                               (firmware-dist.ts)
+│                               (firmware-dist.ts), the apps partition image (apps-partition.ts)
 └─ docs/                        repository and worker reference
 ```
 

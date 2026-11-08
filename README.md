@@ -63,6 +63,16 @@ lists them. The home ball returns to Pocket Shell.
 `bun run app build <pocket.app.json>` compiles an app of this repository
 with the firmware's host config into `.pocket-build/apps/`.
 
+A Tab5 can carry the applets without a Mac. pocket-shell's `bun run tab5
+<applet>…` compiles them from its `vendor/applets` against this host config
+(`POCKET_M5_ROOT`); `-DPOCKETJS_TAB5_BUNDLED_PACKAGES="<a.pocket>;<b.pocket>"`
+embeds packages in the firmware image, served from flash like the bundled
+apps (the `factory` partition has room for about 3.5 MiB of them beside Pocket
+Shell when `POCKETJS_TAB5_BUNDLED_APPS` is empty), and `bun
+tools/apps-partition.ts <out.bin> <package.pocket>… --flash <port>` writes
+packages onto the 4 MiB `apps` partition as installs would, where a paired
+Mac can replace or remove them.
+
 ## Firmware releases
 
 `.github/workflows/firmware.yml` runs on pull requests, on pushes to `main`
