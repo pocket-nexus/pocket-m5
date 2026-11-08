@@ -38,7 +38,10 @@ to the launcher. The build also compiles the apps that
 `apps/tab5-demo;apps/worker-http;apps/unit-swap;apps/worker-mqtt`)
 and embeds them; `pocketjs_system_start` admits each once and serves it from
 flash as an installed app, so a bundled app is never copied to the card or
-into PSRAM. `-DPOCKETJS_TAB5_SHELL_PACKAGE=<package.pocket>` embeds a package
+into PSRAM. `POCKETJS_TAB5_BUNDLED_PACKAGES` lists prebuilt packages
+(`.pocket` files the host contract admits, such as the applets pocket-shell's
+`bun run tab5` builds) that are embedded and served the same way.
+`-DPOCKETJS_TAB5_SHELL_PACKAGE=<package.pocket>` embeds a package
 the host contract admits in place of Pocket Shell. The primary surface is
 laid out into a PSRAM buffer that nothing scans out.
 `pocket_idf_package_open` (the IDF archive) admits a package by the

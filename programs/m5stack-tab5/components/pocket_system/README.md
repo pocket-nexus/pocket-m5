@@ -46,7 +46,8 @@ partition at start when it fits and is read into PSRAM at each launch
 otherwise.
 
 Start lists every package the partition holds: a package whose slot
-directory is missing from the store (another card) gets the directory, and the launcher
+directory is missing from the store (another card, or a partition written
+over USB by `tools/apps-partition.ts`) gets the directory, and the launcher
 reads its facts from the package on the next table scan.
 
 The `bundled` packages of `pocketjs_system_config_t` stay in the firmware

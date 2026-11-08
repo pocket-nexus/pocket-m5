@@ -69,6 +69,27 @@ foreach(app_dir IN LISTS POCKETJS_TAB5_BUNDLED_APPS)
         "      pocketjs_package_${bundled_name}.data, pocketjs_package_${bundled_name}.size};\n")
     math(EXPR bundled_count "${bundled_count} + 1")
 endforeach()
+# Prebuilt packages the firmware serves from flash beside the apps above:
+# each entry is a .pocket file compiled with this host config, such as an
+# applet that pocket-shell's `bun run tab5` builds from its vendor/applets
+# (the applets need a newer PocketJS than third_party/pocketjs compiles).
+set(POCKETJS_TAB5_BUNDLED_PACKAGES "" CACHE STRING "Prebuilt .pocket files to install at boot")
+foreach(package_file IN LISTS POCKETJS_TAB5_BUNDLED_PACKAGES)
+    get_filename_component(package_leaf "${package_file}" NAME_WE)
+    string(MAKE_C_IDENTIFIER "${package_leaf}" package_symbol)
+    string(TOLOWER "bundled_package_${package_symbol}" bundled_name)
+    pocketjs_embed_package(
+        TARGET ${COMPONENT_LIB}
+        NAME ${bundled_name}
+        PACKAGE "${package_file}"
+        HOST_CONFIG "../pocket.host.config.ts"
+        PROFILE_EXPORT_DIR "${CMAKE_CURRENT_BINARY_DIR}/pocketjs/bundled/profile")
+    string(APPEND bundled_includes "#include \"pocketjs_package_${bundled_name}.h\"\n")
+    string(APPEND bundled_entries
+        "  bundled[${bundled_count}] = (pocketjs_system_bundled_t){\n"
+        "      pocketjs_package_${bundled_name}.data, pocketjs_package_${bundled_name}.size};\n")
+    math(EXPR bundled_count "${bundled_count} + 1")
+endforeach()
 if(bundled_count EQUAL 0)
     set(bundled_body "  *count = 0;\n  return NULL;\n")
 else()
