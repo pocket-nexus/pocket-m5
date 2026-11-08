@@ -21,6 +21,9 @@ static const char *TAG = "tab5_camera_media";
 
 static bool camera_ready;
 static bool media_ready;
+static bool store_in_flash;
+
+void tab5_camera_media_store(bool in_flash) { store_in_flash = in_flash; }
 
 static esp_err_t start_sensor(void *context) {
   (void)context;
@@ -55,6 +58,7 @@ void tab5_camera_media_install(JSContext *realm, pocket_runtime *runtime,
     config.start_sensor = start_sensor;
     config.rotation = TAB5_CAMERA_ROTATION;
     config.storage_root = "/pocket";
+    config.storage_in_flash = store_in_flash;
     config.worker_core = TAB5_WORKER_CORE;
     camera_ready = pocketjs_camera_setup(&config) == ESP_OK;
   }

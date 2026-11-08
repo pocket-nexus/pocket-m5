@@ -43,6 +43,8 @@
 #define PATH_CAPACITY 160
 #define THUMB_MAGIC 0x48544b50u /* "PKTH" */
 #define WORKER_STACK (8u * 1024u)
+/* Listing a DCIM tree or removing a photo on a flash store. */
+#define STORE_CALL_STACK (6u * 1024u)
 #define MAX_HANDLES 256
 #define EVENTS_LIMIT 8192u
 
@@ -101,6 +103,9 @@ static int handle_count;
 static text_t events = {.limit = EVENTS_LIMIT};
 static text_t events_out;
 static text_t list_out;
+/* The storage is a flash partition: a task touching it needs an internal
+ * stack (pocketjs_camera_config_t.storage_in_flash). */
+static bool storage_in_flash;
 
 // ---------------------------------------------------------------------------
 // text
@@ -503,7 +508,10 @@ static void worker_run(void *argument) {
     push_result(&result);
   }
   xSemaphoreGive(worker_exited);
-  vTaskDeleteWithCaps(NULL);
+  if (storage_in_flash)
+    vTaskDelete(NULL);
+  else
+    vTaskDeleteWithCaps(NULL);
 }
 
 static bool ensure_worker(void) {
@@ -525,7 +533,11 @@ static bool ensure_worker(void) {
     return true;
   stopping = false;
   /* Below the UI and render tasks: encoding and decoding take what the
-   * frames leave. */
+   * frames leave. On a flash store the worker reads and writes files with
+   * the cache disabled, so its stack is internal RAM. */
+  if (storage_in_flash)
+    return xTaskCreatePinnedToCore(worker_run, "pocketjs_photos", WORKER_STACK,
+                                   NULL, 2, &worker, worker_core) == pdPASS;
   return xTaskCreatePinnedToCoreWithCaps(
              worker_run, "pocketjs_photos", WORKER_STACK, NULL, 2, &worker,
              worker_core, MALLOC_CAP_SPIRAM) == pdPASS;
@@ -548,9 +560,46 @@ static bool enqueue(const job_t *job) {
 // guest-facing (owner task, except photos_save and photos_fail)
 // ---------------------------------------------------------------------------
 
-void photos_setup(const char *storage_root, int core) {
+void photos_setup(const char *storage_root, int core, bool in_flash) {
   snprintf(storage, sizeof storage, "%s", storage_root);
   worker_core = core;
+  storage_in_flash = in_flash;
+}
+
+typedef struct {
+  void (*job)(void *);
+  void *context;
+  SemaphoreHandle_t done;
+} store_call_t;
+
+static void store_call_run(void *argument) {
+  store_call_t *call = argument;
+  call->job(call->context);
+  xSemaphoreGive(call->done);
+  vTaskDelete(NULL);
+}
+
+/* Run `job`, which reads or writes the storage, from the calling task (the
+ * guest's, whose stack is in PSRAM): in place on a card, else on a short task
+ * whose stack is internal RAM, waiting for it. False when that task could not
+ * start. */
+static bool on_store(void (*job)(void *), void *context) {
+  if (!storage_in_flash) {
+    job(context);
+    return true;
+  }
+  store_call_t call = {.job = job, .context = context};
+  call.done = xSemaphoreCreateBinary();
+  if (call.done == NULL)
+    return false;
+  const bool started =
+      xTaskCreatePinnedToCore(store_call_run, "pocketjs_photos_fs",
+                              STORE_CALL_STACK, &call, 3, NULL,
+                              worker_core) == pdPASS;
+  if (started)
+    xSemaphoreTake(call.done, portMAX_DELAY);
+  vSemaphoreDelete(call.done);
+  return started;
 }
 
 void photos_bind(pocket_runtime *owner) { runtime = owner; }
@@ -588,7 +637,8 @@ static int compare_names(const void *a, const void *b) {
   return -strcmp(*(char *const *)a, *(char *const *)b);
 }
 
-const char *photos_list_json(void) {
+static void list_photos(void *unused) {
+  (void)unused;
   char **names = calloc(MAX_LIST, sizeof *names);
   int count = 0;
   char root[STORAGE_CAPACITY + 8];
@@ -635,7 +685,12 @@ const char *photos_list_json(void) {
   }
   text_append(&list_out, "]", 1);
   free(names);
-  return list_out.data != NULL ? list_out.data : "[]";
+}
+
+const char *photos_list_json(void) {
+  text_reset(&list_out);
+  on_store(list_photos, NULL);
+  return list_out.data != NULL && list_out.length > 0 ? list_out.data : "[]";
 }
 
 int32_t photos_load(const char *name, int32_t kind) {
@@ -665,6 +720,20 @@ void photos_free(int32_t handle) {
   }
 }
 
+typedef struct {
+  const char *name;
+  bool removed;
+} remove_t;
+
+static void remove_photo(void *argument) {
+  remove_t *request = argument;
+  char path[PATH_CAPACITY];
+  photo_path(path, sizeof path, request->name);
+  request->removed = remove(path) == 0;
+  thumb_path(path, sizeof path, request->name);
+  remove(path);
+}
+
 bool photos_remove(const char *name) {
   char upper_name[NAME_CAPACITY];
   if (name == NULL || strlen(name) >= sizeof upper_name)
@@ -673,12 +742,8 @@ bool photos_remove(const char *name) {
   photo_upper(upper_name);
   if (!photo_name(upper_name))
     return false;
-  char path[PATH_CAPACITY];
-  photo_path(path, sizeof path, upper_name);
-  bool removed = remove(path) == 0;
-  thumb_path(path, sizeof path, upper_name);
-  remove(path);
-  return removed;
+  remove_t request = {.name = upper_name};
+  return on_store(remove_photo, &request) && request.removed;
 }
 
 /* A full buffer (EVENTS_LIMIT) drops the event. */

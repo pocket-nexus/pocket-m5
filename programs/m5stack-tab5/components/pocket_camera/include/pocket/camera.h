@@ -27,6 +27,11 @@ typedef struct {
   uint32_t rotation;
   /** Directory holding DCIM/ and the thumbnail cache, e.g. "/pocket". */
   const char *storage_root;
+  /** The storage is a FAT on a flash partition, not a card: reading or
+   * writing it disables the cache, which a task may do only with its stack
+   * in internal RAM. The photo worker then takes an internal stack, and
+   * listing or removing photos runs on a short task with one. */
+  bool storage_in_flash;
   /** Core for the capture, QR decoder and photo worker tasks. */
   int worker_core;
 } pocketjs_camera_config_t;
