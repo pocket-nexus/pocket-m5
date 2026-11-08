@@ -19,7 +19,10 @@
 
 #include "pocket_runtime.h"
 
-void photos_setup(const char *storage_root, int worker_core);
+/* `storage_in_flash`: the storage is a FAT on a flash partition, whose
+ * reads and writes disable the cache (pocketjs_camera_config_t). */
+void photos_setup(const char *storage_root, int worker_core,
+                  bool storage_in_flash);
 void photos_bind(pocket_runtime *owner);
 /* Queue still `job` for saving; the worker frees `rgb565`, which came from
  * photos_alloc_still. Any task. False when the queue is full; an "error"

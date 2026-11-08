@@ -30,5 +30,12 @@ and full views (fitted to 320x240) are decoded by the codec and box-filtered
 by `engine/host-services/photos_image.c`; thumbnails are cached under
 `<storage>/photos/thumbs`. Long file names need FAT LFN or LittleFS.
 
+The storage may be a FAT on a flash partition (`storage_in_flash`, the Tab5
+without a card), whose reads and writes disable the cache. A task may do that
+only with its stack in internal RAM, and the guest's task and the photo
+worker otherwise take theirs from PSRAM: on a flash store the worker's 8 KiB
+stack comes from internal RAM, and listing or removing photos runs on a
+short task with a 6 KiB internal stack while the guest waits.
+
 Call `pocketjs_camera_install` with the guest's realm before the runtime
 boots it and `pocketjs_camera_teardown` before the runtime is destroyed.

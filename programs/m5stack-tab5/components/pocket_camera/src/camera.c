@@ -129,7 +129,8 @@ esp_err_t pocketjs_camera_setup(const pocketjs_camera_config_t *config) {
     return ESP_ERR_INVALID_ARG;
   board = *config;
   configured = true;
-  photos_setup(config->storage_root, config->worker_core);
+  photos_setup(config->storage_root, config->worker_core,
+               config->storage_in_flash);
   return ESP_OK;
 }
 

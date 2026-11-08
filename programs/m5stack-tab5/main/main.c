@@ -1360,7 +1360,9 @@ static void run_app(void *unused) {
            scale, strip_rows);
   host.app_task = xTaskGetCurrentTaskHandle();
 
-  start_board(start_system());
+  const char *card_root = start_system();
+  tab5_camera_media_store(card_root == NULL);
+  start_board(card_root);
   start_worker_host(&host);
   pocketjs_system_app_t *app = NULL;
   ESP_ERROR_CHECK(pocketjs_system_load_launcher(&app));
