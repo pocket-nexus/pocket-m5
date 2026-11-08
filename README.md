@@ -13,11 +13,14 @@ Link and switches between them on the device.
 firmware: Pocket Shell 640×360 at 2x, turned onto the panel; installs over the
 Pocket Link; a floating home ball; Wi-Fi with an optional access point,
 SNTP clock, worker HTTP, MQTT, I2C and RS485 nodes, camera, media, PCM audio and
-microphones, board controls and keyboard. Pocket Shell is
-[`apps/pocket-shell`](apps/pocket-shell/README.md), taken from
-[pocket-shell](https://github.com/pocket-nexus/pocket-shell) at `188c46c`
-and changed here since; the applets (Hacker News, YouTube, Notes and the
-others) live in [pocket-nexus/applets](https://github.com/pocket-nexus/applets).
+microphones, board controls and keyboard. Pocket Shell, the launcher, is
+compiled from the [pocket-shell](https://github.com/pocket-nexus/pocket-shell)
+submodule at `third_party/pocket-shell` (`shells/3ds/shell`); the applets
+(Hacker News, YouTube, Notes and the others), the iOS 6 kit they share with
+the launcher and every icon live in
+[pocket-nexus/applets](https://github.com/pocket-nexus/applets), pocket-shell's
+`vendor/applets`. A launcher change lands in pocket-shell, then this
+repository bumps the submodule.
 App workers get an `http` node (`pocket_http_esp`), an `mqtt` node
 (`pocket_mqtt_esp`, MQTT 3.1.1 and 5.0) and `i2c` and `uart` nodes
 (`pocket_io_esp`); see [Worker domain](docs/WORKER.md).
@@ -39,7 +42,8 @@ launcher (M5Tab5-UserDemo) on PocketJS.
 ```sh
 git clone <repository-url> pocket-m5
 cd pocket-m5
-git submodule update --init third_party/pocketjs
+git submodule update --init third_party/pocketjs third_party/pocket-shell
+git -C third_party/pocket-shell submodule update --init vendor/applets
 bun install                         # JavaScript dependencies and git hooks
 rustup target add riscv32imafc-unknown-none-elf --toolchain 1.98.1
 
@@ -122,7 +126,6 @@ driver contracts and directory layout come from pocket-nexus/pocketjs#603.
 
 ## License
 
-MIT, see [LICENSE](LICENSE). The files taken from pocket-shell
-(`apps/pocket-shell`, `tools/pocket-shell-icons.ts`, `tools/pocket-shell-icons/`,
-`tests/pocket-shell-clock.test.ts`) keep their `GPL-3.0-or-later` lines; a
-firmware image that embeds Pocket Shell contains that code.
+MIT, see [LICENSE](LICENSE). Pocket Shell (`third_party/pocket-shell`) and
+the applets are `GPL-3.0-or-later`; a firmware image that embeds Pocket Shell
+contains that code.

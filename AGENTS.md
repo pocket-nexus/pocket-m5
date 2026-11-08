@@ -46,10 +46,14 @@ Architecture and implementation notes belong in `docs/`, not here.
 
 ## Dependencies and third-party code
 
-- `third_party/pocketjs` is a pinned submodule. Do not edit files in it from
-  this repository; land the change upstream, then bump the submodule. A
-  pocketjs bump rebuilds every app, Pocket Shell (`apps/pocket-shell`)
-  included, so a breaking change updates the apps in the same pull request.
+- `third_party/pocketjs` and `third_party/pocket-shell` are pinned
+  submodules. Do not edit files in them from this repository; land the
+  change upstream, then bump the submodule. Pocket Shell, the launcher, is
+  compiled from `third_party/pocket-shell/shells/3ds/shell` with its
+  `vendor/applets` (the iOS 6 kit and the icons); a launcher change for the
+  Tab5 lands in pocket-shell. A pocketjs bump rebuilds every app, Pocket
+  Shell included, so a breaking change updates the apps in the same pull
+  request.
 - ESP-IDF registry dependencies are declared with exact versions in
   `idf_component.yml`. Each program commits its `dependencies.lock`.
 - Code derived from third-party sources keeps its original copyright and

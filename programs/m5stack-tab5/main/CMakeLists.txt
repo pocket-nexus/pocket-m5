@@ -25,10 +25,11 @@ idf_component_register(
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wall -Wextra -Werror)
 
-# The launcher is Pocket Shell (apps/pocket-shell), compiled against the
-# host config pocket.host.config.ts. A package the host contract admits
-# replaces it.
-set(POCKETJS_TAB5_SHELL_PACKAGE "" CACHE FILEPATH "Launcher package to embed instead of apps/pocket-shell")
+# The launcher is Pocket Shell, compiled from the third_party/pocket-shell
+# submodule (shells/3ds/shell, with the shared iOS 6 kit and icons of its
+# vendor/applets submodule) against the host config pocket.host.config.ts.
+# A package the host contract admits replaces it.
+set(POCKETJS_TAB5_SHELL_PACKAGE "" CACHE FILEPATH "Launcher package to embed instead of third_party/pocket-shell")
 if(POCKETJS_TAB5_SHELL_PACKAGE)
     pocketjs_embed_package(
         TARGET ${COMPONENT_LIB}
@@ -39,7 +40,8 @@ else()
     pocketjs_compile_app(
         TARGET ${COMPONENT_LIB}
         NAME app
-        MANIFEST "../../../apps/pocket-shell/pocket.app.json"
+        MANIFEST "../../../third_party/pocket-shell/shells/3ds/shell/pocket.app.json"
+        PROJECT_ROOT "../../../third_party/pocket-shell/shells/3ds"
         HOST_CONFIG "../pocket.host.config.ts")
 endif()
 

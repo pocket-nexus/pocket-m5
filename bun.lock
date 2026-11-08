@@ -11,7 +11,6 @@
       "devDependencies": {
         "@commitlint/cli": "21.2.4",
         "@commitlint/config-conventional": "21.2.4",
-        "@napi-rs/canvas": "1.0.13",
         "bun-types": "1.4.4",
         "clang-format-node": "4.0.3",
         "lefthook": "2.2.2",
@@ -19,7 +18,7 @@
     },
     "third_party/pocketjs": {
       "name": "@pocketjs/framework",
-      "version": "0.15.0",
+      "version": "0.16.0",
       "dependencies": {
         "@babel/core": "7.29.7",
         "@babel/preset-typescript": "7.29.7",

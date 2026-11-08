@@ -5,13 +5,16 @@ PocketJS as the `third_party/pocketjs` submodule and follows the directory
 split of pocketjs `main` (pocket-nexus/pocketjs#603): **platforms** hold SDK
 and board drivers, and **programs** compose drivers into firmware with a
 host config and the **host contract** (`pocket.host.json`), the facts apps
-compile and are admitted against. The launcher, Pocket Shell, is `apps/pocket-shell`.
+compile and are admitted against. The launcher, Pocket Shell, is compiled
+from the `third_party/pocket-shell` submodule.
 
 ```text
 pocket-m5/
 ├─ .github/workflows/           firmware.yml: host checks, Tab5 build, releases on v* tags
 ├─ third_party/
-│  └─ pocketjs/                 PocketJS checkout pinned to a commit (submodule)
+│  ├─ pocketjs/                 PocketJS checkout pinned to a commit (submodule)
+│  └─ pocket-shell/             Pocket Shell, the launcher (submodule; shells/3ds/shell,
+│                               with the applets, their kit and icons in vendor/applets)
 ├─ platforms/esp-idf/           ESP-IDF components owned by this repository
 │  ├─ pocket_worker_esp/        FreeRTOS owner of the PocketJS worker core
 │  ├─ pocket_http_esp/          worker http node over esp_http_client
@@ -23,16 +26,15 @@ pocket-m5/
 │     │                         pocket_device (this program only)
 │     └─ pocket.host.json       tab5-home: 640x360 auxiliary surface, presented at 2x
 ├─ apps/
-│  ├─ pocket-shell/             the launcher, from pocket-shell's shells/3ds/home
 │  ├─ worker-http/              worker HTTP check for programs/m5stack-tab5
 │  ├─ worker-mqtt/              worker MQTT check for programs/m5stack-tab5
 │  ├─ unit-swap/                Port A units found and driven by the worker, one at a time
 │  └─ tab5-demo/                the Tab5 factory launcher (M5Tab5-UserDemo) on PocketJS
 ├─ tests/                       host tests: HTTP and MQTT records, I2C descriptors, sensor drivers,
-│                               Pocket Shell's clock, Unit Swap's conversions and records
+│                               Unit Swap's conversions and records
 ├─ tools/                       pocket CLI wrapper, app packaging, formatter, host tests,
-│                               tab5-demo artwork conversion, Pocket Shell's icons,
-│                               firmware packaging (firmware-dist.ts)
+│                               tab5-demo artwork conversion, firmware packaging
+│                               (firmware-dist.ts)
 └─ docs/                        repository and worker reference
 ```
 
@@ -50,8 +52,8 @@ display, input and renderers, starts the launcher services and boots one
 runtime per app. The program owns its host contract (`pocket.host.json`);
 the host config `pocket.host.config.ts` names it. The build exports
 `pocket_profile.h`, whose `pocket_profile.facts` record the runtime admits
-packages against, and compiles Pocket Shell (`apps/pocket-shell`) and the
-bundled apps with the same host config.
+packages against, and compiles Pocket Shell (`third_party/pocket-shell`) and
+the bundled apps with the same host config.
 
 **Components one program uses stay with that program.**
 `programs/m5stack-tab5/components/` holds the launcher services, camera,
