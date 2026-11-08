@@ -46,6 +46,9 @@ jobs:
           submodules: true
           # The firmware version is `git describe` of the checkout.
           fetch-depth: 0
+      # Pocket Shell builds with its applets submodule (the iOS 6 kit and the
+      # icons); its own pocketjs submodule is not needed here.
+      - run: git -C third_party/pocket-shell submodule update --init vendor/applets
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: .bun-version

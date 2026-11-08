@@ -14,7 +14,7 @@ pocket-nexus/pocketjs#617.
 
 | Host contract | Launcher | Picture |
 | --- | --- | --- |
-| `tab5-home` (`pocket.host.json`, through `pocket.host.config.ts`) | Pocket Shell from `apps/pocket-shell` | the auxiliary surface, 640x360 at raster density 1, turned and presented at 2x |
+| `tab5-home` (`pocket.host.json`, through `pocket.host.config.ts`) | Pocket Shell from `third_party/pocket-shell` (`shells/3ds/shell`) | the auxiliary surface, 640x360 at raster density 1, turned and presented at 2x |
 
 `pocket.host.json` (format `pocket-host/2`) states the facts: one cadence,
 30 Hz; a 400x240 primary viewport and the 640x360 auxiliary surface, both
@@ -29,7 +29,9 @@ place through one mapping, and the launcher's cached facts, each app's
 `storage` flash partition without a card); it also keeps the Pocket Link to
 a paired companion, the Wi-Fi radio on the ESP32-C6 (esp_hosted) and the
 wall clock from SNTP. The build compiles Pocket Shell
-(`apps/pocket-shell`) with `pocket.host.config.ts`, embeds it as the
+(`third_party/pocket-shell/shells/3ds/shell`, project root `shells/3ds`, whose
+`ui`, `lib`, `kit` and `shell/art/icons` are links into its `vendor/applets`)
+with `pocket.host.config.ts`, embeds it as the
 launcher and boots one runtime per app; SELECT from the home control returns
 to the launcher. The build also compiles the apps that
 `POCKETJS_TAB5_BUNDLED_APPS` lists (default
