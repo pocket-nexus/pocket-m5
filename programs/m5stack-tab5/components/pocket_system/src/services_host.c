@@ -723,6 +723,11 @@ static void admit_flash_store(void) {
     }
     if (!resident_put(&entry))
       ESP_LOGE(TAG, "slot %s: no room in the package table", slot);
+    /* The launcher lists the slot directories of the store: a package on
+     * the partition whose directory is missing (another card) gets one. */
+    char path[SLOT_PATH_BYTES];
+    if (launcher_host_slot_path(slot, NULL, path, sizeof path))
+      mkdir(path, 0777);
     i += 1;
   }
 }
