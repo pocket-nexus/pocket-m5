@@ -45,6 +45,10 @@ when no run of pages is free, an install fails with that reason; a
 partition at start when it fits and is read into PSRAM at each launch
 otherwise.
 
+Start lists every package the partition holds: a package whose slot
+directory is missing from the store (another card) gets the directory, and the launcher
+reads its facts from the package on the next table scan.
+
 The `bundled` packages of `pocketjs_system_config_t` stay in the firmware
 image: start admits each once and keeps its facts, removes a
 `package.pocket` or installed copy an earlier firmware kept for its slot,
