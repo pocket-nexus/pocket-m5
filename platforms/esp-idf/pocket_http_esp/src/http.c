@@ -38,6 +38,12 @@ typedef struct {
   /* phase and cancel are shared with the worker task under the mutex. */
   slot_phase phase;
   bool cancel;
+  /* A close found the request running; logged once per request, then
+   * where the request task is every two seconds while the close waits. */
+  bool close_waited;
+  int64_t close_logged_at;
+  /* Where the request task is, for that log. */
+  const char *volatile where;
   pocket_worker *worker;
   uint32_t handle, request;
   int64_t deadline;
@@ -405,6 +411,7 @@ static bool follow(slot *s, int code, const char *location) {
 static int32_t perform_companion(slot *s) {
   const pocket_http_esp_companion *c = s->driver->config.companion;
   char error[160] = "";
+  s->where = "companion start";
   const uint32_t id =
       c->start(c->context, s->opened, s->opened_length, error, sizeof error);
   if (!id)
@@ -415,12 +422,16 @@ static int32_t perform_companion(slot *s) {
   pocket_http_esp_fact *fact = &s->fact;
   int32_t status;
   for (;;) {
+    s->where = "stopped check";
     if (stopped(s, "the companion did not finish the request", &status))
       break;
+    s->where = "companion take";
     if (!c->take(c->context, id, fact)) {
+      s->where = "poll delay";
       vTaskDelay(pdMS_TO_TICKS(COMPANION_POLL_MS));
       continue;
     }
+    s->where = "emit";
     if (fact->kind == POCKET_WORKER_END) {
       if (fact->status == POCKET_WORKER_OK)
         ESP_LOGI(TAG, "%.200s through the companion %lluB", s->url,
@@ -441,7 +452,9 @@ static int32_t perform_companion(slot *s) {
     else if (fact->kind == POCKET_WORKER_DATA)
       s->delivered = fact->offset + fact->length;
   }
+  s->where = "companion close";
   c->close(c->context, id);
+  s->where = "companion closed";
   return status;
 }
 
@@ -482,14 +495,32 @@ static void request_task(void *opaque) {
     unlock(d);
     if (quit)
       break;
+    s->where = "perform";
     const int32_t status = perform(s);
-    /* After a cancel or close the request is terminal already; finish still
-     * ends the stream and releases the native request. */
-    pocket_worker_finish(s->worker, s->handle, s->request, status,
-                         s->delivered);
+    s->where = "finish";
+    lock(d);
+    const bool waited = s->close_waited;
+    unlock(d);
+    if (waited)
+      ESP_LOGI(TAG, "%.200s: let go after a close, status %d", s->url,
+               (int)status);
+    /* The slot is done before the worker learns it: a worker closes its
+     * resource as soon as the completion arrives, and a close that still
+     * found SLOT_RUNNING was refused and left the slot taken until the core
+     * retried it, which can be one long request later. The fields finish
+     * needs are read first; a slot freed and opened again meanwhile waits
+     * for this task's next turn. */
+    pocket_worker *worker = s->worker;
+    const uint32_t handle = s->handle;
+    const uint32_t request = s->request;
+    const uint64_t delivered = s->delivered;
     lock(d);
     s->phase = SLOT_DONE;
     unlock(d);
+    /* After a cancel or close the request is terminal already; finish still
+     * ends the stream and releases the native request. */
+    pocket_worker_finish(worker, handle, request, status, delivered);
+    s->where = "idle";
   }
   xSemaphoreGive(d->stopped);
   if (d->config.task_stack_caps)
@@ -514,6 +545,7 @@ static int32_t driver_open(void *opaque, pocket_worker *worker, uint32_t handle,
     s->worker = worker;
     s->request = 0;
     s->cancel = false;
+    s->close_waited = false;
   }
   unlock(d);
   if (!s)
@@ -595,6 +627,15 @@ static int32_t driver_close(void *opaque, pocket_worker *worker,
     /* The core retries until the request task lets go. */
     s->cancel = true;
     status = POCKET_WORKER_BUSY;
+    if (!s->close_waited) {
+      s->close_waited = true;
+      s->close_logged_at = esp_timer_get_time();
+      ESP_LOGW(TAG, "%.200s: close waits for the request", s->url);
+    } else if (esp_timer_get_time() - s->close_logged_at > 2000000) {
+      s->close_logged_at = esp_timer_get_time();
+      ESP_LOGW(TAG, "%.200s: close still waits; the request task is at %s",
+               s->url, s->where ? s->where : "?");
+    }
   } else if (s) {
     s->phase = SLOT_FREE;
     s->handle = 0;

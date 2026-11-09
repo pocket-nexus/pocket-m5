@@ -210,6 +210,8 @@ typedef struct {
   int64_t tick_started;
   uint64_t tick_us;
   uint32_t tick_max_us;
+  uint64_t pump_us;
+  uint32_t pump_max_us;
 } tab5_host_t;
 
 static uint32_t screen_width(const tab5_host_t *host) {
@@ -706,7 +708,12 @@ static void before_tick(void *context) {
     host->worker_failed = true;
     xTaskNotifyGive(host->app_task);
   }
+  const int64_t pump_started = esp_timer_get_time();
   pocketjs_system_pump();
+  const uint32_t pumped = (uint32_t)(esp_timer_get_time() - pump_started);
+  host->pump_us += pumped;
+  if (pumped > host->pump_max_us)
+    host->pump_max_us = pumped;
   if (pocketjs_system_switch_pending() && !host->switch_signalled) {
     host->switch_signalled = true;
     xTaskNotifyGive(host->app_task);
@@ -734,9 +741,18 @@ static void stop_guest(tab5_host_t *host) {
    * the package bytes holding the worker source go. */
   if (running->worker_ui)
     pocket_worker_ui_detach(running->worker_ui);
-  if (running->worker)
-    while (pocket_worker_esp_stop(running->worker, 1000) == ESP_ERR_TIMEOUT)
-      ESP_LOGW(TAG, "waiting for the worker's native IO to stop");
+  /* A worker request that rides the Pocket Link (a companion.pocket service)
+   * ends only when the link is pumped, which the stopped runner no longer
+   * does: pump the system services while the worker's native IO winds down. */
+  if (running->worker) {
+    uint32_t waited_ms = 0;
+    while (pocket_worker_esp_stop(running->worker, 50) == ESP_ERR_TIMEOUT) {
+      pocketjs_system_pump();
+      waited_ms += 50;
+      if (waited_ms % 1000 == 0)
+        ESP_LOGW(TAG, "waiting for the worker's native IO to stop");
+    }
+  }
   /* Camera and media textures belong to the runtime, which goes before its
    * guest, renderers and displays. */
   if (running->runtime) {
@@ -1403,14 +1419,19 @@ static void run_app(void *unused) {
     const uint32_t frames = stats.frames - last.frames;
     ESP_LOGI(TAG,
              "fps=%.1f skipped=%" PRIu32 " errors=%" PRIu32
-             " frame_avg_ms=%.2f frame_max_ms=%.2f",
+             " frame_avg_ms=%.2f frame_max_ms=%.2f pump_avg_ms=%.2f"
+             " pump_max_ms=%.2f",
              frames * 1e6 / (double)(now - logged),
              stats.frames_skipped - last.frames_skipped,
              stats.frame_errors - last.frame_errors,
              frames > 0U ? host.tick_us / 1000.0 / frames : 0.0,
-             host.tick_max_us / 1000.0);
+             host.tick_max_us / 1000.0,
+             frames > 0U ? host.pump_us / 1000.0 / frames : 0.0,
+             host.pump_max_us / 1000.0);
     host.tick_us = 0;
     host.tick_max_us = 0;
+    host.pump_us = 0;
+    host.pump_max_us = 0;
     last = stats;
     logged = now;
   }

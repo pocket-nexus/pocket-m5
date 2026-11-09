@@ -164,6 +164,54 @@ headers record and an 8 KiB receive window: 18,608 bytes of internal RAM in
 `companion.c` with the link client and runs it against pocketjs's companion
 in the test process.
 
+## The link over USB-C
+
+The Tab5's USB-C port is the ESP32-P4's USB Serial/JTAG controller: one
+CDC-ACM serial line (USB 303a:1001), which is also the console
+(`CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG`, no secondary console). `usb_link.c`
+carries the Pocket Link over it, so a companion at the other end of the
+cable (a phone in USB host mode, or a computer) pairs and links without the
+camera or Wi-Fi.
+
+The link client (`engine/host-services/link.c`) connects over TCP only.
+`usb_link.c` listens on **127.0.0.1:8628** and carries the connection the
+link client opens there over the cable; `link_host_net_ready()` holds while a
+companion answers on the cable, Wi-Fi or not. The driver
+(`usb_serial_jtag_driver_install`, 16 KiB each way) takes the console's
+writes as well (`usb_serial_jtag_vfs_use_driver`), and a packet is one driver
+write, so a log line lands before or after a packet, never inside it.
+
+A packet is `F5 50 type len16 payload crc16`, little endian, at most 2048
+payload bytes; the CRC is CRC-16/CCITT-FALSE over type, length and payload.
+`0xF5` never occurs in UTF-8, so a reader takes every byte outside a valid
+packet as log text.
+
+| Type | Direction | Payload |
+| --- | --- | --- |
+| `01` HELLO | console to companion, every 1 s | `link.status()` JSON |
+| `02` ATTACH | companion to console, every 1 s | none: a companion is on the cable (3 s without a packet: gone) |
+| `10` OPEN | console to companion | connection id, u32 window: the link client connected to 127.0.0.1:8628 |
+| `11` DATA | both | connection id, then the connection's bytes |
+| `12` CLOSE | both | connection id |
+| `13` CREDIT | console to companion | connection id, u32: DATA bytes delivered to the link client, which the companion may send again |
+| `20` PAIR | companion to console | a `pocketlink://pair` URI, run as if scanned (`link.pair`, on the system task) |
+| `21` BEACON | companion to console | a 64-byte Pocket Link beacon, sent to the link client's beacon socket from 127.0.0.1 |
+
+DATA toward the console is flow controlled. The driver's receive interrupt
+drops bytes that do not fit its 16 KiB RX ring (`usb_serial_jtag.c` ignores a
+failed `xRingbufferSendFromISR`), and USB gives the companion no
+backpressure, so the companion keeps at most the OPEN window (8 KiB) of DATA
+unacknowledged, and the console returns CREDIT in steps of 2 KiB as it hands
+the bytes to the loopback socket. A full loopback queue or socket buffer
+makes that hand-off wait, not fail. A 446 KiB install takes 4.3 s.
+
+A companion that finds itself missing from HELLO's `paired` list sends PAIR
+with host 127.0.0.1 and port 8628: the cable is the trust boundary, as it is
+for Pocket Link's USB carrier. The pairing stores 127.0.0.1 as the
+companion's address, and the link client also follows the same companion's
+beacons on the LAN once the cable is out. pocket-lyrics-android's
+`UsbCarrier` is the companion side.
+
 ## Clock and worker support
 
 `clock.c` starts the SNTP client (`esp_netif_sntp`,

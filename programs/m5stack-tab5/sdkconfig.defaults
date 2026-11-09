@@ -56,3 +56,15 @@ CONFIG_BSP_SD_MOUNT_POINT="/pocket"
 CONFIG_CAMERA_SC202CS=y
 CONFIG_ESP_VIDEO_ENABLE_ISP_PIPELINE_CONTROLLER=y
 # CONFIG_ESP_VIDEO_ENABLE_DVP_VIDEO_DEVICE is not set
+# The console on the USB-C port (USB Serial/JTAG) alone, so the Pocket Link
+# packets usb_link.c writes there and the log share one driver, a whole
+# write at a time (pocket_system README, "The link over USB-C").
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
+# usb_link.c carries the link through 127.0.0.1: an install streams 32 KiB
+# frames through it, more than the default 8 queued loopback packets.
+CONFIG_LWIP_LOOPBACK_MAX_PBUFS=0
+# Core 1 runs the render lane and the app's worker without idling; the
+# idle check's register dumps go to the USB-C line past its driver and
+# break the Pocket Link packets usb_link.c writes there.
+# CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1 is not set

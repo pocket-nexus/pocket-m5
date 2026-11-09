@@ -16,6 +16,8 @@ struct pocket_worker_esp {
   pocket_worker_runner *runner;
   esp_timer_handle_t timer;
   esp_err_t startup;
+  /* Set on the worker task once its runner is being destroyed. */
+  bool destroying;
   size_t guest_used, guest_peak;
   char console[4][1024];
   unsigned console_count, console_dropped;
@@ -120,6 +122,14 @@ static uint64_t now(void *context) {
  * worker tick. */
 static void wait_until(void *context, uint64_t deadline) {
   pocket_worker_esp *host = context;
+  /* Destroy retries while a driver's task still holds a resource, and each
+   * retry's close wakes this task itself, so a notification wait returns at
+   * once and the retry loop would starve every lower-priority task on this
+   * core: among them the driver task it waits for. Sleep a tick instead. */
+  if (host->destroying) {
+    vTaskDelay(1);
+    return;
+  }
   esp_timer_stop(host->timer);
   if (deadline != UINT64_MAX) {
     const uint64_t current = now(host);
@@ -277,6 +287,7 @@ static void run(void *opaque) {
              (unsigned)uxTaskGetStackHighWaterMark(NULL));
     /* Destroy retries through wait_until while native IO still holds the
      * core, so the deadline timer must outlive it. */
+    host->destroying = true;
     pocket_worker_runner_destroy(host->runner);
     host->runner = NULL;
   }
