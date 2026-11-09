@@ -209,7 +209,7 @@ A companion that finds itself missing from HELLO's `paired` list sends PAIR
 with host 127.0.0.1 and port 8628: the cable is the trust boundary, as it is
 for Pocket Link's USB carrier. The pairing stores 127.0.0.1 as the
 companion's address, and the link client also follows the same companion's
-beacons on the LAN once the cable is out. pocket-netease-android's
+beacons on the LAN once the cable is out. pocket-lyrics-android's
 `UsbCarrier` is the companion side.
 
 ## Clock and worker support
