@@ -42,7 +42,7 @@
 #include "host_services.h"
 #include "jscan.h"
 #include "launcher.h"
-#include "link.h"
+#include "link2_host.h"
 #include "sha256.h"
 #include "system_internal.h"
 
@@ -479,6 +479,17 @@ void link_host_address(char *out, size_t capacity) {
   wifi_address(out, capacity);
 }
 
+void *pocket_system_link_malloc(size_t size) {
+  void *block = heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  return block != NULL ? block : malloc(size);
+}
+
+void *pocket_system_link_calloc(size_t count, size_t size) {
+  void *block =
+      heap_caps_calloc(count, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  return block != NULL ? block : calloc(count, size);
+}
+
 bool link_host_staging_path(const char *slot, char *out, size_t capacity) {
   char directory[SLOT_PATH_BYTES];
   if (!launcher_host_slot_path(slot, NULL, directory, sizeof directory))
@@ -486,6 +497,18 @@ bool link_host_staging_path(const char *slot, char *out, size_t capacity) {
   mkdir(apps_dir, 0777);
   mkdir(directory, 0777);
   return launcher_host_slot_path(slot, STAGING_NAME, out, capacity);
+}
+
+/* A slot's folder is made here, in milliseconds on FAT. When it cannot be
+ * made the answer is still true: the commit then fails with its own
+ * message instead of an install that waits for a folder for good. */
+bool link_host_slot_ready(const char *slot) {
+  char directory[SLOT_PATH_BYTES];
+  if (launcher_host_slot_path(slot, NULL, directory, sizeof directory)) {
+    mkdir(apps_dir, 0777);
+    mkdir(directory, 0777);
+  }
+  return true;
 }
 
 bool link_host_install(const char *slot, const char *path, uint64_t hash,
@@ -580,6 +603,8 @@ bool link_host_remove(const char *slot) {
   return fs_remove_tree(directory, FS_MAX_DEPTH + 2) || installed;
 }
 
+/* Version 1's hooks for an agent channel: the version 2 client calls none
+ * of them, and this host has no agent. */
 void link_host_linked(bool up) { (void)up; }
 
 bool link_host_ctrl(const char *json, size_t length) {
@@ -782,8 +807,15 @@ static void migrate_files(void) {
   closedir(directory);
 }
 
+static void report_link(const char *hub, const char *why) {
+  if (hub != NULL)
+    ESP_LOGI(TAG, "pocket link: linked to %s", hub);
+  else
+    ESP_LOGI(TAG, "pocket link: down (%s)", why != NULL ? why : "closed");
+}
+
 /* The store's directories, the launcher's slot, the bundled and installed
- * packages and the link's identity. */
+ * packages and the link's client. */
 static void start_store(void *argument) {
   esp_err_t *result = argument;
   mkdir(apps_dir, 0777);
@@ -823,7 +855,12 @@ static void start_store(void *argument) {
     if (flash_store_ready())
       migrate_files();
   }
-  link_init();
+  const Link2HostConfig link_config = {
+      .home = &package,
+      .host_abi = config.host_abi,
+      .report = report_link,
+  };
+  link2_host_init(&link_config);
 }
 
 esp_err_t pocketjs_system_start(const pocketjs_system_config_t *settings) {
@@ -981,9 +1018,10 @@ bool pocketjs_system_app_is_launcher(const pocketjs_system_app_t *app) {
 static void bind_app(void *argument) {
   const pocketjs_system_app_t *app = argument;
   LauncherPackage package = facts_of(&app->facts, app->bytes, app->size);
-  /* The link names the running app in every net request; the guest's top
-   * level may already fetch. */
+  /* The link names the running app in every net.http request and in
+   * runtime.status; the guest's top level may already fetch. */
   launcher_set_current(app->slot, &package);
+  link2_host_guest_begin(&package);
   if ((app->facts.features & POCKET_IDF_FEATURE_FS) != 0U) {
     char data[SLOT_PATH_BYTES];
     char temp[SLOT_PATH_BYTES];
@@ -1012,7 +1050,7 @@ esp_err_t pocketjs_system_bind(JSContext *realm,
 
 static void unbind(void *unused) {
   (void)unused;
-  link_reset_guest();
+  link2_host_guest_end();
   install_reset_guest();
   fs_unbind();
 }
@@ -1051,7 +1089,7 @@ bool pocketjs_system_launch(const char *output) {
 
 static void pump(void *unused) {
   (void)unused;
-  link_pump();
+  link2_host_pump();
   install_pump();
 }
 

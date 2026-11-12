@@ -23,6 +23,7 @@ ${CC:-cc} -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
   platforms/esp-idf/pocket_mqtt_esp/src/record.c -o "$validation_dir/mqtt-record"
 "$validation_dir/mqtt-record"
 bun test ./tests/sensors.test.ts ./tests/rtc-setting.test.ts ./tests/unit-swap.test.ts
-# The companion.pocket route on the Pocket Link client, against pocketjs's
-# companion (it builds its own native harness).
-bun test ./tests/companion-route.test.ts
+# The Tab5's side of Pocket Link 2 and its companion.pocket route on the
+# link client, against pocketjs's reference Hub (it builds its own native
+# harness).
+bun test ./tests/link-host.test.ts

@@ -34,6 +34,12 @@ bool clock_wait(uint32_t ms);
  * (flash access), and return when it has finished. */
 void system_run(void (*job)(void *), void *context);
 
+/* services_host.c: the malloc and calloc of the Pocket Link client
+ * (CMakeLists.txt), from PSRAM, and from the default heap when PSRAM has no
+ * room. free() releases either. */
+void *pocket_system_link_malloc(size_t size);
+void *pocket_system_link_calloc(size_t count, size_t size);
+
 /* fetch.c: one download at a time into `path`, hashed with SHA-256 as it
  * is written. fetch_poll answers FETCH_RUNNING, FETCH_DONE (`sha256` holds
  * the file's hash) or FETCH_FAILED (`error` says why); `total` is the
