@@ -273,7 +273,13 @@ void link2_host_pump(void) {
   if (client == NULL)
     return;
   frames += 1;
-  link2_pump(client);
+  /* Without an address every attempt to connect fails at once and doubles
+   * the backoff, so the search waits for the radio: measured on a Tab5, two
+   * failed attempts before the address came put the link 5.3 s behind it. A
+   * link that is up is pumped whatever the radio's state: its socket then
+   * reads as gone, and it drops. */
+  if (link_host_net_ready() || link2_linked(client))
+    link2_pump(client);
   link_http_pump();
   link2_guest_service();
 }

@@ -807,11 +807,24 @@ static void migrate_files(void) {
   closedir(directory);
 }
 
+/* A Hub that is away fails every attempt the same way: a reason is logged
+ * once, until the link comes up or the reason changes. */
 static void report_link(const char *hub, const char *why) {
-  if (hub != NULL)
+  static bool up;
+  static char last[96];
+  if (hub != NULL) {
+    up = true;
+    last[0] = '\0';
     ESP_LOGI(TAG, "pocket link: linked to %s", hub);
-  else
-    ESP_LOGI(TAG, "pocket link: down (%s)", why != NULL ? why : "closed");
+    return;
+  }
+  const char *reason = why != NULL ? why : "closed";
+  if (up)
+    ESP_LOGI(TAG, "pocket link: down (%s)", reason);
+  else if (strcmp(reason, last) != 0)
+    ESP_LOGI(TAG, "pocket link: no link (%s)", reason);
+  up = false;
+  snprintf(last, sizeof last, "%s", reason);
 }
 
 /* The store's directories, the launcher's slot, the bundled and installed
