@@ -30,6 +30,7 @@ idf_component_register(
     REQUIRES pocket_runtime pocket_guest_quickjs
     PRIV_REQUIRES esp-tls esp_event esp_http_client esp_http_server esp_netif esp_partition esp_timer esp_wifi fatfs log lwip mbedtls nvs_flash pocket_http_esp spi_flash vfs wear_levelling
     REQUIRED_IDF_TARGETS esp32p4
+    LDFRAGMENTS "linker.lf"
 )
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wall -Wextra -Werror)

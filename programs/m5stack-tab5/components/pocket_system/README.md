@@ -182,18 +182,32 @@ format: the client loads them, lists them in `link.status()` and links to
 none, since no version 2 Hub holds their id and key; `link.forget` removes
 them.
 
-**Memory.** The client allocates once, at start (`link2.h`, "Memory"): its
-record (12,520 bytes), a 16,384-byte receive buffer, a 32,780-byte send
-buffer and its request and stream tables (11,208 bytes), 72,892 bytes in
-all. Each but the send buffer is at most
-`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL` (16,384) bytes, which `malloc` places
-in internal RAM, and the program starts these services after its strips
-have left 64 KiB of internal RAM to the JPEG codec and the coprocessor link.
-`CMakeLists.txt` therefore compiles `link2.c` with its `malloc` and `calloc`
-named `pocket_system_link_malloc` and `pocket_system_link_calloc`
-(`services_host.c`), which take PSRAM first. The link's sources hold
-26,209 bytes of internal RAM in `.bss` (`riscv32-esp-elf-size` on the
-objects), 20,668 of them the two HTTP requests below.
+**Memory.** Internal RAM that DMA reaches is what the Wi-Fi coprocessor's
+driver takes a buffer from for every packet (`eh_sdio`), and an applet with a
+worker and an HTTPS request leaves little of it, so the link keeps none:
+
+- The client allocates once, at start (`link2.h`, "Memory"): its record
+  (12,520 bytes), a 16,384-byte receive buffer, a 32,780-byte send buffer and
+  its request and stream tables (11,208 bytes), 72,892 bytes in all. Each but
+  the send buffer is at most `CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL` (16,384)
+  bytes, which `malloc` places in internal RAM. `CMakeLists.txt` therefore
+  compiles `link2.c` with its `malloc` and `calloc` named
+  `pocket_system_link_malloc` and `pocket_system_link_calloc`
+  (`services_host.c`), which take PSRAM first.
+- The static state of `link2.c`, `link2_guest.c`, `link2_http.c` and
+  `link2_host.c`, 26,152 bytes of `.bss` (20,668 of them the two HTTP
+  requests below), is placed in PSRAM by `linker.lf`
+  (`CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY`; the map file lists no
+  other object in `.ext_ram.bss`). Every function of those files runs on the
+  system task.
+
+Measured on a Tab5 in the launcher, linked, as the free bytes of
+`MALLOC_CAP_DMA`: 68,515 with both; 39,451 with the static state in internal
+RAM; 47,291 for the version 1 firmware before this port. Hacker News leaves
+about 25 KB of them while it runs and each of its HTTPS requests takes about
+8 KB more: with 39,451 at the start its first request found 551 bytes, the
+driver sent no packet for the 7 s the name lookup waited, and the link
+dropped for silence.
 
 `tests/link-host.test.ts` builds `link2_host.c` and `companion.c` with the
 link client under ASan and UBSan and runs them against pocketjs's reference
@@ -224,7 +238,7 @@ over the radio as before.
 
 The link client holds two requests (`LINK_HTTP_SLOTS`), each with a 1 KiB
 headers record, a 1 KiB request body and an 8 KiB receive window that is the
-response stream's whole credit: 20,668 bytes of internal RAM in `.bss`.
+response stream's whole credit: 20,668 bytes of `.bss`, in PSRAM.
 
 ## Clock and worker support
 
