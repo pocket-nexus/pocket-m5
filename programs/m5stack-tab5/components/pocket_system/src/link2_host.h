@@ -58,6 +58,9 @@ void link2_host_guest_begin(const LauncherPackage *package);
 void link2_host_guest_end(void);
 /* The installed set changed outside the link (an install from a code). */
 void link2_host_apps_changed(void);
+/* Inside link_host_staging_path: the size the Hub declared for the install
+ * whose staging file the engine is about to open. 0 outside it. */
+uint32_t link2_host_install_bytes(void);
 /* The client, NULL when it could not be created. */
 Link2 *link2_host_client(void);
 /* Close the link with CLOSE `going_away` and free the client: a host that

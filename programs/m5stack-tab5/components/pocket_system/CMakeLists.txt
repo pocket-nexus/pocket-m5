@@ -7,6 +7,7 @@ set(shared "${CMAKE_CURRENT_LIST_DIR}/../../../../third_party/pocketjs/engine/ho
 idf_component_register(
     SRCS
         "src/services_host.c"
+        "src/flash_stage.c"
         "src/flash_store.c"
         "src/wifi.c"
         "src/clock.c"

@@ -24,28 +24,49 @@ partition:
 | `link/companions/<hub id>.last` | the name, address and port of that Hub's last link, when they differ from the key file's |
 | `apps/<slot>/app.txt` | the launcher's cached facts (output, id, title, version) |
 | `apps/<slot>/data/` | the guest's `data.fs` tree, quota from `applet.store` |
-| `apps/<slot>/link-upload.pocket`, `url-upload.pocket` | an install in progress, from the Hub or from a code |
+| `apps/<slot>/link-upload.pocket`, `url-upload.pocket` | an install staged in a file: from a code, or from the Hub when it cannot stream into the partition |
 | the `packages_partition` (`apps`) | the installed packages, one extent of 64 KiB pages each |
 | `apps/<slot>/package.pocket` | a package installed when the firmware had no `apps` partition |
 
-`<slot>` is the first 16 hex digits of SHA-256 of the app id. An install
-streams into `apps/<slot>/link-upload.pocket`, is admitted
+`<slot>` is the first 16 hex digits of SHA-256 of the app id. A stored
+package is an extent of whole pages of the `apps` partition
+(`flash_store.c`): a 64-byte header, the package from offset 64, padding to
+the page. The bytes go first and the header last, so an install that is cut
+off or refused leaves free pages, never a package the firmware would refuse;
+a replaced or removed package has the state word of its header cleared in
+place. The whole partition is mapped read-only once, so an installed package
+is read from flash where it is, like an embedded one.
+
+**An install from the Hub streams into the partition.** The engine writes an
+install with stdio into the path the host gives it; `flash_stage.c` gives it
+a path whose bytes go to the partition as they are written. A run of free
+pages is set aside for the size the Hub declares, each page is erased when
+the bytes reach it, and each piece is programmed before the write returns.
+The link grants the Hub credit for more only after it has handed a piece
+over, so at most 64 KiB (the stream's window) are on their way while flash
+is written, and no file, on the card or on the `storage` partition, holds
+the package. When the last byte is in, the package is admitted where it lies
 (`pocket_idf_package_open`: footer, FNV-1a64, then the first variant the
 firmware's host facts satisfy: binding generation, raster density, animation
-class, tick rate, viewport, presentation, capabilities and auxiliary surface)
-and is programmed into the first free run of pages of the `apps`
-partition (`flash_store.c`): a 64-byte header, the package from offset 64,
-padding to the page. The bytes go first and the header last, so an
-interrupted install leaves free pages, never a package the firmware would
-refuse; a replaced or removed package has the state word of its header
-cleared in place. The whole partition is mapped read-only once, so an
-installed package is read from flash where it is, like an embedded one. The
-flash writes take a few seconds for a 1.6 MiB package and stall the other
-tasks for each chunk, and the running app cannot be replaced: an install
-into its slot is refused until the launcher runs. Without the partition, or
-when no run of pages is free, an install fails with that reason; a
-`package.pocket` an earlier firmware kept under the store is moved to the
-partition at start when it fits and is read into PSRAM at each launch
+class, tick rate, viewport, presentation, capabilities and auxiliary
+surface) and its header is written: no copy is read back into PSRAM and
+nothing is programmed twice. On a Tab5 523,864 bytes took 3.4 s from the
+first byte to the commit, and the longest frame in it was 423 ms. A flash
+write stalls the other tasks for each piece, so the frames slow down for as
+long as the install runs.
+
+**An install is staged in a file of the store instead**
+(`apps/<slot>/link-upload.pocket`), read into PSRAM when it is whole and
+programmed in one piece, when the partition has no run of free pages for it
+(the slot's own pages are then reused: an interrupted install loses the app),
+when another install is streaming, and when the firmware has no `apps`
+partition. An install from a code is staged the same way
+(`url-upload.pocket`). Programming a package in one piece holds one frame:
+2,048 ms for 467,288 bytes on a Tab5. The running app cannot be replaced: an
+install into its slot is refused until the launcher runs. Without the
+partition, or when no run of pages is free, an install fails with that
+reason; a `package.pocket` an earlier firmware kept under the store is moved
+to the partition at start when it fits and is read into PSRAM at each launch
 otherwise.
 
 Start lists every package the partition holds: a package whose slot
@@ -157,7 +178,7 @@ The firmware lists these groups in its `hello` (§6.1):
 | `apps` | reports the launcher's row and the launcher's table as `runtime.apps`, after `ready` and after each install or removal |
 | `runtime` | answers `runtime.status` and switches to an installed app on `runtime.launch`; a push and a screenshot answer `unsupported` |
 | `runtime.remove` | removes an installed applet at the Hub's request; never the launcher, the running app or a bundled package |
-| `catalog`, `install` | the store of `globalThis.link`: the Hub's offer for target `tab5-home`, and a package streamed into `apps/<slot>/link-upload.pocket` and committed as any install |
+| `catalog`, `install` | the store of `globalThis.link`: the Hub's offer for target `tab5-home`, and a package streamed into the `apps` partition ("Store") |
 | `net.http` | the worker's requests to `companion.pocket` ("Companion services") |
 
 It opens no applet channel, runs no agent and has no DevTools stream. The

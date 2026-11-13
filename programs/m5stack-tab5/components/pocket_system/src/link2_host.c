@@ -196,6 +196,24 @@ static bool on_launch(void *context, const char *native, const char *app,
   return true;
 }
 
+/* The engine opens an install's staging file from its own install_begin and
+ * tells the host only the slot. The host places the stage by the package's
+ * size, so that call is made with the declared size on record. */
+static bool (*guest_install_begin)(void *context, uint32_t request,
+                                   const char *app, const char *hash,
+                                   uint32_t bytes);
+static uint32_t install_bytes;
+
+static bool on_install_begin(void *context, uint32_t request, const char *app,
+                             const char *hash, uint32_t bytes) {
+  install_bytes = bytes;
+  const bool begun = guest_install_begin(context, request, app, hash, bytes);
+  install_bytes = 0;
+  return begun;
+}
+
+uint32_t link2_host_install_bytes(void) { return install_bytes; }
+
 static void on_linked(void *context, const char *hub, const char *why) {
   (void)context;
   /* The worker's open requests end; what it has not read yet stays. */
@@ -255,6 +273,8 @@ void link2_host_init(const Link2HostConfig *config) {
   host.launch = on_launch;
   /* Catalog, install and runtime.remove: the guest namespace's own paths. */
   link2_guest_host(&host);
+  guest_install_begin = host.install_begin;
+  host.install_begin = on_install_begin;
   link2_http_host(&host);
 
   /* The folders Hub's setup writes into, there before a card goes to a

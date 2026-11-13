@@ -17,6 +17,15 @@ ${CC:-cc} -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
   programs/m5stack-tab5/components/pocket_system/src/install_uri.c \
   -o "$validation_dir/install-uri"
 "$validation_dir/install-uri"
+# The package store on a flash image in memory, then a start on the image an
+# install was cut on.
+${CC:-cc} -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
+  -I tests/idf -I programs/m5stack-tab5/components/pocket_system/src \
+  tests/flash-store.c \
+  programs/m5stack-tab5/components/pocket_system/src/flash_store.c \
+  -o "$validation_dir/flash-store"
+"$validation_dir/flash-store" write "$validation_dir/flash-store.image"
+"$validation_dir/flash-store" reopen "$validation_dir/flash-store.image"
 bun tests/mqtt-vectors.ts "$validation_dir/mqtt-vectors.h"
 ${CC:-cc} -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
   -I "$validation_dir" -I platforms/esp-idf/pocket_mqtt_esp/src tests/mqtt-record.c \

@@ -79,6 +79,26 @@ esp_err_t flash_store_install(const char *slot, const uint8_t *bytes,
                               const uint8_t **stored);
 bool flash_store_remove(const char *slot);
 size_t flash_store_free_bytes(void);
+/* The stage: one install that streams into the partition. Begin sets a run
+ * of free pages aside for a package of `size` bytes, false when no run is
+ * free or another install is streaming. A write returns once its bytes are
+ * programmed. The staged bytes are read through the mapping. Commit makes
+ * them `slot`'s package and replaces the one it had; abort, and a firmware
+ * that starts in the middle, leave the pages free. */
+bool flash_store_stage_begin(size_t size);
+bool flash_store_staging(void);
+esp_err_t flash_store_stage_write(const uint8_t *bytes, size_t length);
+const uint8_t *flash_store_staged(size_t *size);
+esp_err_t flash_store_stage_commit(const char *slot, const uint8_t **stored);
+void flash_store_stage_abort(void);
+
+/* flash_stage.c: the stage as the staging file of an install, for the
+ * engine's stdio. flash_stage_path begins the stage for `slot` and writes the
+ * path to open; false when the install has to be staged in a file of the
+ * store instead. */
+bool flash_stage_path(const char *slot, size_t size, char *out,
+                      size_t capacity);
+bool flash_stage_is(const char *path);
 
 /* qjs.c: install the system namespaces into the guest's realm; the
  * launcher also gets `installer`. */

@@ -25,7 +25,7 @@ and a worker table of one `http`, one `mqtt`, two `i2c` and one `uart` node, the
 The firmware is a launcher console: `components/pocket_system`
 keeps the installed packages on the 4 MiB `apps` flash partition, read in
 place through one mapping, and the launcher's cached facts, each app's
-`data.fs` tree and uploads in progress on the microSD card (SDSPI; the
+`data.fs` tree and an install that is staged in a file on the microSD card (SDSPI; the
 `storage` flash partition without a card); it also keeps the Pocket Link 2
 client to a paired Hub, the Wi-Fi radio on the ESP32-C6 (esp_hosted) and the
 wall clock from SNTP. The build compiles Pocket Shell

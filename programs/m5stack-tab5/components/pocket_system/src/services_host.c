@@ -491,6 +491,17 @@ void *pocket_system_link_calloc(size_t count, size_t size) {
 }
 
 bool link_host_staging_path(const char *slot, char *out, size_t capacity) {
+  /* An install from the Hub streams into the apps partition when it has a
+   * run of free pages for the declared size: no file, on a card or on the
+   * storage partition, holds the package on its way. Without the partition,
+   * without such a run (link_host_install then reuses the slot's own pages)
+   * or beside another install that is streaming, it is staged in a file. */
+  const uint32_t declared = link2_host_install_bytes();
+  if (declared != 0 && flash_stage_path(slot, declared, out, capacity)) {
+    ESP_LOGI(TAG, "slot %s: %u bytes stream into the apps partition", slot,
+             (unsigned)declared);
+    return true;
+  }
   char directory[SLOT_PATH_BYTES];
   if (!launcher_host_slot_path(slot, NULL, directory, sizeof directory))
     return false;
@@ -511,9 +522,64 @@ bool link_host_slot_ready(const char *slot) {
   return true;
 }
 
+/* Admit the package an install streamed into the apps partition and commit
+ * it where it is: no copy is read back into PSRAM and none is programmed a
+ * second time. */
+static bool install_staged(const char *slot, uint64_t hash,
+                           LauncherPackage *out, void **held, char *error,
+                           size_t capacity) {
+  size_t size = 0;
+  const uint8_t *bytes = flash_store_staged(&size);
+  const ResidentPackage *resident = resident_in_slot(slot);
+  ResidentPackage entry;
+  bool admitted = false;
+  if (resident != NULL && resident->bundled)
+    snprintf(error, capacity,
+             "install: the slot holds a package bundled into the firmware");
+  /* Its old pages become free at the commit, and an install after this one
+   * may erase them under it. */
+  else if (strcmp(slot, launcher_current_slot()) == 0)
+    snprintf(error, capacity,
+             "install: the app is running; return to the launcher first");
+  else if (size < 8 || (hash != 0 && footer_of(bytes, size) != hash))
+    snprintf(error, capacity, "the package does not match its declared hash");
+  else if (admit_resident(bytes, size, false, &entry, error, capacity)) {
+    if (strcmp(entry.slot, slot) != 0)
+      snprintf(error, capacity, "the package belongs to another app");
+    else
+      admitted = true;
+  }
+  if (!admitted) {
+    flash_store_stage_abort();
+    return false;
+  }
+  const esp_err_t result = flash_store_stage_commit(slot, NULL);
+  if (result != ESP_OK) {
+    snprintf(error, capacity,
+             "install: the apps partition could not be written (%s)",
+             esp_err_to_name(result));
+    return false;
+  }
+  if (!resident_put(&entry)) {
+    flash_store_remove(slot);
+    snprintf(error, capacity, "install: no room in the package table");
+    return false;
+  }
+  char stale[SLOT_PATH_BYTES];
+  if (launcher_host_slot_path(slot, PACKAGE_NAME, stale, sizeof stale))
+    remove(stale);
+  ESP_LOGI(TAG, "slot %s: %u bytes installed where they were streamed", slot,
+           (unsigned)size);
+  *out = facts_of(&entry.facts, entry.bytes, entry.size);
+  *held = NULL;
+  return true;
+}
+
 bool link_host_install(const char *slot, const char *path, uint64_t hash,
                        LauncherPackage *out, void **held, char *error,
                        size_t error_capacity) {
+  if (flash_stage_is(path))
+    return install_staged(slot, hash, out, held, error, error_capacity);
   const ResidentPackage *resident = resident_in_slot(slot);
   if (resident != NULL && resident->bundled) {
     remove(path);
