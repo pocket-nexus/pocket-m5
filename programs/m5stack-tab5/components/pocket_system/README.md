@@ -81,8 +81,25 @@ and rewrites the slot's `app.txt` when the cached hash differs. They are
 installed apps the Hub can neither replace nor remove. The runtime
 reads every package where it is, without a copy or a second hash pass
 (`POCKET_MEMORY_PACKAGE_VERIFIED`): the admission here is the hash pass.
-`pocketjs_system_mount_flash` mounts a wear-levelled FAT partition when no
-card is available.
+
+**Without a card the directory is LittleFS on the `storage` partition**
+(`pocketjs_system_mount_flash`, the `joltwallet/littlefs` component).
+LittleFS writes a change beside what it replaces and commits it in one
+program, so a reset or a power cut inside a write leaves the file as it was
+or as it was to be. The partition held FatFs over wear levelling before:
+that pair writes a sector as an erase and a program, and a Tab5 that was
+reset between the two, 4 s into its first start without a card, kept an
+erased allocation table. FatFs reads that table as a full volume, so the
+store mounted and took no write from then on: the device made a new id at
+every start and kept no `data.fs` and no pairing.
+
+**A partition that holds no LittleFS is formatted at start**: a new one, and
+the FAT volume an earlier firmware kept there, whose files are not carried
+over. A Tab5 with a card keeps its store on the card and loses nothing. On a
+Tab5 the format took 35 ms. Eight starts were reset inside the writes of the
+store's first files, four of them while a file was being written: each
+mounted at the next start, with no format and no error. The reset was the
+chip's, over USB; a cut of the flash chip's own power was not tried.
 
 ## Guest lifecycle
 
